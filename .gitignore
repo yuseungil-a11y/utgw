@@ -1,0 +1,13 @@
+config.ini
+__pycache__/
+*.pyc
+.venv/
+venv/
+build/
+dist/
+*.spec
+.DS_Store
+
+# 참고용 엑셀/PPT (실제 재무·인사 데이터 포함, 저장소에는 올리지 않음)
+*.pptx
+*.xlsx
