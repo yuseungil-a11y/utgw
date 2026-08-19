@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import date
 
 from PySide6.QtCore import Qt
@@ -55,6 +56,11 @@ _ROW_HEIGHT = 30
 
 RESIDENCE_OPTIONS = ["상주", "비상주"]
 RATE_OPTIONS = list(range(0, 101, 5))  # 0%, 5%, ..., 100%
+
+# 목록(투입률) 보기에서 같은 사람이 2개 이상의 프로젝트에 중복 참여 중일 때 성명 칸을
+# 분홍색으로 강조하기 위한 색상 (100% 초과 경고에 쓰는 빨간색과는 다른 색으로 구분)
+_DUPLICATE_NAME_BG = "#FCE0EE"
+_DUPLICATE_NAME_TEXT = "#B0266F"
 
 # 목록 보기(첨부 엑셀 시트01 기준) 고정 컬럼. 월 컬럼 개수는 사용자가 고른 조회기간
 # (시작 연/월 ~ 종료 연/월)에 따라 가변적이라 모듈 상수로 고정하지 않는다.
@@ -560,6 +566,8 @@ class ProjectManpowerDialog(QDialog):
         self._list_table.setRowCount(len(rows))
         self._month_combo_refs = []
 
+        empl_project_counts = Counter(prow.empl_id for prow in rows)
+
         for row_idx, prow in enumerate(rows):
             self._list_table.setRowHeight(row_idx, _ROW_HEIGHT)
 
@@ -575,6 +583,14 @@ class ProjectManpowerDialog(QDialog):
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 if col_idx == 0:
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                if col_idx == 4 and empl_project_counts[prow.empl_id] > 1:
+                    # 같은 사람이 여러 프로젝트에 중복 참여 중임을 눈에 띄게 표시
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    font = QFont()
+                    font.setBold(True)
+                    item.setFont(font)
+                    item.setBackground(QColor(_DUPLICATE_NAME_BG))
+                    item.setForeground(QColor(_DUPLICATE_NAME_TEXT))
                 self._list_table.setItem(row_idx, col_idx, item)
 
             resdng_combo = _build_choice_combo(RESIDENCE_OPTIONS, _NO_RESIDENCE_LABEL, prow.resdng_div)
@@ -599,7 +615,10 @@ class ProjectManpowerDialog(QDialog):
                 for value in RATE_OPTIONS:
                     combo.addItem(f"{value}%", value)
                 combo.setCurrentIndex(RATE_OPTIONS.index(percent) if percent in RATE_OPTIONS else 0)
-                combo.currentIndexChanged.connect(lambda _idx, r=row_idx: self._recompute_total(r))
+                self._apply_rate_combo_style(combo)
+                combo.currentIndexChanged.connect(
+                    lambda _idx, r=row_idx, c=combo: self._on_month_rate_changed(r, c)
+                )
                 self._list_table.setCellWidget(row_idx, LIST_FIXED_COL_COUNT + offset, combo)
                 month_combos.append(combo)
             self._month_combo_refs.append(month_combos)
@@ -608,6 +627,19 @@ class ProjectManpowerDialog(QDialog):
             self._list_table.setItem(row_idx, remark_col, remark_item)
 
             self._recompute_total(row_idx)
+
+    def _apply_rate_combo_style(self, combo: QComboBox) -> None:
+        """월별 투입률 드롭다운이 0%일 때 흐린 회색 글자로 표시해 실제 투입 중인 달과
+        구분되게 한다."""
+        if combo.currentData() == 0:
+            theme = current_theme()
+            combo.setStyleSheet(f"QComboBox {{ color: {theme.text_secondary}; }}")
+        else:
+            combo.setStyleSheet("")
+
+    def _on_month_rate_changed(self, row_idx: int, combo: QComboBox) -> None:
+        self._apply_rate_combo_style(combo)
+        self._recompute_total(row_idx)
 
     def _recompute_total(self, row_idx: int) -> None:
         if row_idx >= len(self._month_combo_refs):
@@ -618,6 +650,8 @@ class ProjectManpowerDialog(QDialog):
         item = self._list_table.item(row_idx, 7)
         if item:
             item.setText(f"{avg:.1f}%")
+            theme = current_theme()
+            item.setForeground(QColor(theme.text_secondary if avg == 0 else theme.text_primary))
 
     def _read_current_row(
         self, row_idx: int
@@ -790,7 +824,7 @@ class ProjectManpowerDialog(QDialog):
 
             for offset, (y, m) in enumerate(months):
                 rate = monthly_rates.get(f"{y:04d}{m:02d}", 0)
-                bar_item = QTableWidgetItem(f"{rate}%" if rate else "")
+                bar_item = QTableWidgetItem(f"{rate}%")
                 bar_item.setFlags(bar_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 bar_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if rate >= self._WBS_MIN_RATE:
@@ -799,6 +833,8 @@ class ProjectManpowerDialog(QDialog):
                     bar_item.setFont(bar_font)
                     bar_item.setBackground(QColor(theme.accent))
                     bar_item.setForeground(QColor(theme.accent_text))
+                elif rate == 0:
+                    bar_item.setForeground(QColor(theme.text_secondary))
                 self._wbs_table.setItem(row_idx, WBS_FIXED_COL_COUNT + offset, bar_item)
 
     # ------------------------------------------------------------------
@@ -948,6 +984,11 @@ class ProjectManpowerDialog(QDialog):
         for col_idx, text in enumerate(headers, start=1):
             sheet.cell(row=1, column=col_idx, value=text)
 
+        zero_font = Font(color="9AA0A6")
+        duplicate_fill = PatternFill(start_color="FCE0EE", end_color="FCE0EE", fill_type="solid")
+        duplicate_font = Font(color="B0266F", bold=True)
+        empl_project_counts = Counter(prow.empl_id for prow in self._participation_rows)
+
         for row_idx, prow in enumerate(self._participation_rows):
             resdng_div, role_div, remark, monthly = self._read_current_row(row_idx)
             role_name = dict(self._role_options).get(role_div, "") if role_div else ""
@@ -969,6 +1010,11 @@ class ProjectManpowerDialog(QDialog):
                 cell = sheet.cell(row=excel_row, column=col_idx, value=value)
                 if col_idx == 8 or LIST_FIXED_COL_COUNT < col_idx <= LIST_FIXED_COL_COUNT + month_count:
                     cell.number_format = "0%"
+                    if value == 0:
+                        cell.font = zero_font
+                if col_idx == 5 and empl_project_counts[prow.empl_id] > 1:
+                    cell.fill = duplicate_fill
+                    cell.font = duplicate_font
 
         sheet.column_dimensions["A"].width = 6
         sheet.column_dimensions["B"].width = 40
@@ -1000,6 +1046,7 @@ class ProjectManpowerDialog(QDialog):
         header_fill = PatternFill(start_color="31379E", end_color="31379E", fill_type="solid")
         bar_fill = PatternFill(start_color="5678FF", end_color="5678FF", fill_type="solid")
         bar_font = Font(color="FFFFFF", bold=True)
+        zero_font = Font(color="9AA0A6")
 
         for row_idx, (kind, name, role, monthly_rates) in enumerate(rows_spec, start=1):
             excel_row = header_row + row_idx
@@ -1015,13 +1062,13 @@ class ProjectManpowerDialog(QDialog):
             sheet.cell(row=excel_row, column=2, value=role)
             for offset, (y, m) in enumerate(months):
                 rate = monthly_rates.get(f"{y:04d}{m:02d}", 0)
-                if not rate:
-                    continue
                 cell = sheet.cell(row=excel_row, column=WBS_FIXED_COL_COUNT + 1 + offset, value=rate / 100)
                 cell.number_format = "0%"
                 if rate >= self._WBS_MIN_RATE:
                     cell.fill = bar_fill
                     cell.font = bar_font
+                elif rate == 0:
+                    cell.font = zero_font
 
         sheet.column_dimensions["A"].width = 14
         sheet.column_dimensions["B"].width = 10
