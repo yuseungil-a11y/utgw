@@ -1,4 +1,3 @@
-from calendar import monthrange
 from datetime import date
 
 from PySide6.QtCore import Qt
@@ -23,68 +22,59 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
-    QWidget,
 )
 from openpyxl import Workbook
-from openpyxl.styles import PatternFill
+from openpyxl.styles import Font, PatternFill
 
 from app.auth import AuthenticatedUser
 from app.config import AppConfig
 from app.queries.project_manpower import (
-    EmployeeRow,
-    ProjectCell,
+    ParticipationRow,
     ProjectMeta,
-    add_project,
+    add_participant,
     ensure_table_exists,
-    get_employee_matrix,
+    get_active_employees,
+    get_employee_grades,
     get_grade_options,
+    get_participation_rows,
     get_role_options,
     get_tracked_projects,
-    remove_project,
+    participation_exists,
+    remove_participant,
     save_employee_grades,
-    save_matrix,
+    save_participation_rows,
+    search_employees,
     search_projects,
 )
 from app.ui.theme import current_theme
 
-# 스크롤해도 항상 보여야 하는 직원 식별 컬럼 (틀고정 영역)
-FROZEN_COLUMNS = ["번호", "성명", "입사일", "부서"]
-# 나머지 직원 정보 컬럼 (스크롤 영역의 왼쪽에 위치)
-SCROLL_FIXED_COLUMNS = [
-    "직급",
-    "기술등급\n(대외/제안서)",
-    "기술등급\n(S/W자격증)",
-    "참여여부\n(하나라도)",
-    "PM,PL\n여부",
-]
-BLOCK_LABELS = ["참여", "역할", "상주", "비상주", "비고"]
-FROZEN_COL_COUNT = len(FROZEN_COLUMNS)
-SCROLL_FIXED_COL_COUNT = len(SCROLL_FIXED_COLUMNS)
-BLOCK_SIZE = len(BLOCK_LABELS)
-
 _NO_ROLE_LABEL = "(선택 안 함)"
 _NO_GRADE_LABEL = "(선택 안 함)"
+_NO_RESIDENCE_LABEL = "(선택 안 함)"
 _ROW_HEIGHT = 30
-_PARTICIPATE_COL_MIN_WIDTH = 140
-_PARTICIPATE_COL_MAX_WIDTH = 340
-_HEADER_TEXT_PADDING = 24
+
+RESIDENCE_OPTIONS = ["상주", "비상주"]
+RATE_OPTIONS = list(range(0, 101, 5))  # 0%, 5%, ..., 100%
+
+# 목록 보기(첨부 엑셀 시트01 기준) 고정 컬럼. 월 컬럼 개수는 사용자가 고른 조회기간
+# (시작 연/월 ~ 종료 연/월)에 따라 가변적이라 모듈 상수로 고정하지 않는다.
+LIST_COLUMNS = ["순번", "사업명", "발주처", "사업기간", "성명", "상주/비상주", "역할", "투입률(합계)"]
+LIST_FIXED_COL_COUNT = len(LIST_COLUMNS)
 
 WBS_FIXED_COLUMNS = ["성명", "역할"]
 WBS_FIXED_COL_COUNT = len(WBS_FIXED_COLUMNS)
 
+PERSON_FIXED_COLUMNS = ["순번", "소속", "직위", "이름", "입사일"]
+PERSON_FIXED_COL_COUNT = len(PERSON_FIXED_COLUMNS)
 
-def _month_range(projects: list[ProjectMeta]) -> list[tuple[int, int]]:
-    """추적 중인 전체 프로젝트의 계약기간을 아우르는 (연,월) 목록을 만든다."""
-    starts = [date.fromisoformat(p.start_date) for p in projects if p.start_date]
-    ends = [date.fromisoformat(p.end_date) for p in projects if p.end_date]
-    if not starts or not ends:
-        today = date.today()
-        return [(today.year, m) for m in range(1, 13)]
 
-    min_start, max_end = min(starts), max(ends)
+def _period_months(
+    start_year: int, start_month: int, end_year: int, end_month: int
+) -> list[tuple[int, int]]:
+    """조회기간(시작 연/월 ~ 종료 연/월)을 아우르는 (연,월) 목록을 만든다."""
     months: list[tuple[int, int]] = []
-    y, m = min_start.year, min_start.month
-    while (y, m) <= (max_end.year, max_end.month):
+    y, m = start_year, start_month
+    while (y, m) <= (end_year, end_month):
         months.append((y, m))
         m += 1
         if m > 12:
@@ -92,32 +82,68 @@ def _month_range(projects: list[ProjectMeta]) -> list[tuple[int, int]]:
     return months
 
 
-def _month_overlaps(year: int, month: int, start: date, end: date) -> bool:
-    first_day = date(year, month, 1)
-    last_day = date(year, month, monthrange(year, month)[1])
-    return first_day <= end and last_day >= start
+def _fitted_width(metrics: QFontMetrics, texts: list[str], padding: int, min_width: int, max_width: int) -> int:
+    """텍스트 목록 중 가장 긴 것의 실제 렌더링 폭을 재서 컬럼 폭을 계산한다. "2026.11월"처럼
+    연도가 붙어 길어진 헤더가 고정폭 컬럼에서 잘리지 않도록 한다."""
+    widest = max((metrics.horizontalAdvance(t) for t in texts), default=0)
+    return max(min_width, min(widest + padding, max_width))
 
 
-class _AddProjectDialog(QDialog):
+def _build_choice_combo(options: list[str], no_choice_label: str, current: str | None) -> QComboBox:
+    combo = QComboBox()
+    combo.addItem(no_choice_label, None)
+    selected_index = 0
+    for idx, option in enumerate(options, start=1):
+        combo.addItem(option, option)
+        if option == current:
+            selected_index = idx
+    combo.setCurrentIndex(selected_index)
+    return combo
+
+
+def _build_code_combo(
+    options: list[tuple[str, str]], no_choice_label: str, current_code: str | None
+) -> QComboBox:
+    combo = QComboBox()
+    combo.addItem(no_choice_label, None)
+    selected_index = 0
+    for idx, (code, name) in enumerate(options, start=1):
+        combo.addItem(name, code)
+        if code == current_code:
+            selected_index = idx
+    combo.setCurrentIndex(selected_index)
+    return combo
+
+
+class _AddParticipantDialog(QDialog):
     def __init__(self, app_config: AppConfig, parent=None):
         super().__init__(parent)
         self._config = app_config
         self.selected_prj_id: str | None = None
+        self.selected_empl_id: str | None = None
 
-        self.setWindowTitle("프로젝트 추가")
-        self.resize(560, 420)
+        self.setWindowTitle("참여자 추가")
+        self.resize(620, 600)
 
-        self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText("프로젝트명, 발주기관, 코드로 검색 (예: 한국도로공사)")
-        self._search_input.textChanged.connect(self._on_search_changed)
+        project_label = QLabel("프로젝트 선택")
+        project_label.setProperty("role", "secondary")
+        self._project_search = QLineEdit()
+        self._project_search.setPlaceholderText("프로젝트명, 발주기관, 코드로 검색 (예: 한국도로공사)")
+        self._project_search.textChanged.connect(self._on_project_search_changed)
+        self._project_list = QListWidget()
+        self._project_list.setMaximumHeight(200)
 
-        self._result_list = QListWidget()
-        self._result_list.itemDoubleClicked.connect(lambda _item: self._confirm())
+        employee_label = QLabel("직원 선택")
+        employee_label.setProperty("role", "secondary")
+        self._employee_search = QLineEdit()
+        self._employee_search.setPlaceholderText("이름으로 검색")
+        self._employee_search.textChanged.connect(self._on_employee_search_changed)
+        self._employee_list = QListWidget()
 
         add_button = QPushButton("추가")
         add_button.clicked.connect(self._confirm)
         cancel_button = QPushButton("취소")
-        cancel_button.setProperty("variant", "secondary")
+        cancel_button.setProperty("variant", "outline")
         cancel_button.clicked.connect(self.reject)
 
         button_row = QHBoxLayout()
@@ -127,39 +153,151 @@ class _AddProjectDialog(QDialog):
 
         layout = QVBoxLayout()
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(10)
-        layout.addWidget(self._search_input)
-        layout.addWidget(self._result_list)
+        layout.setSpacing(8)
+        layout.addWidget(project_label)
+        layout.addWidget(self._project_search)
+        layout.addWidget(self._project_list)
+        layout.addWidget(employee_label)
+        layout.addWidget(self._employee_search)
+        layout.addWidget(self._employee_list)
         layout.addLayout(button_row)
         self.setLayout(layout)
 
-        self._on_search_changed("한국도로공사")
-        self._search_input.setText("한국도로공사")
+        self._project_search.setText("한국도로공사")
+        self._on_project_search_changed("한국도로공사")
+        self._on_employee_search_changed("")
 
-    def _on_search_changed(self, keyword: str) -> None:
+    def _on_project_search_changed(self, keyword: str) -> None:
         keyword = keyword.strip()
+        self._project_list.clear()
         if not keyword:
-            self._result_list.clear()
             return
         try:
             results = search_projects(self._config.database, keyword)
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "검색 실패", f"프로젝트 검색에 실패했습니다.\n{exc}")
             return
-
-        self._result_list.clear()
         for prj_id, prj_name, client_name in results:
             item = QListWidgetItem(f"[{prj_id}] {prj_name}  ·  {client_name}")
             item.setData(Qt.ItemDataRole.UserRole, prj_id)
-            self._result_list.addItem(item)
+            self._project_list.addItem(item)
+
+    def _on_employee_search_changed(self, keyword: str) -> None:
+        self._employee_list.clear()
+        try:
+            results = search_employees(self._config.database, keyword.strip())
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "검색 실패", f"직원 검색에 실패했습니다.\n{exc}")
+            return
+        for empl_id, name, dept in results:
+            item = QListWidgetItem(f"{name}  ·  {dept}")
+            item.setData(Qt.ItemDataRole.UserRole, empl_id)
+            self._employee_list.addItem(item)
 
     def _confirm(self) -> None:
-        item = self._result_list.currentItem()
-        if item is None:
-            QMessageBox.warning(self, "프로젝트 추가", "추가할 프로젝트를 선택해 주세요.")
+        project_item = self._project_list.currentItem()
+        employee_item = self._employee_list.currentItem()
+        if project_item is None or employee_item is None:
+            QMessageBox.warning(self, "참여자 추가", "프로젝트와 직원을 모두 선택해 주세요.")
             return
-        self.selected_prj_id = item.data(Qt.ItemDataRole.UserRole)
+        self.selected_prj_id = project_item.data(Qt.ItemDataRole.UserRole)
+        self.selected_empl_id = employee_item.data(Qt.ItemDataRole.UserRole)
         self.accept()
+
+
+class _EmployeeGradeDialog(QDialog):
+    """직원별 기술등급(대외/제안서, S/W자격증) 관리. 예전엔 매트릭스 보기의 컬럼이었으나,
+    입력화면을 참여 목록형으로 바꾸면서 별도 화면으로 분리했다."""
+
+    def __init__(self, app_config: AppConfig, current_empl_id: str, parent=None):
+        super().__init__(parent)
+        self._config = app_config
+        self._current_empl_id = current_empl_id
+        self._employees = []
+        self._grade_options: list[tuple[str, str]] = []
+
+        self.setWindowTitle("기술등급 관리")
+        self.resize(640, 640)
+
+        title = QLabel("기술등급 관리")
+        title.setProperty("role", "title")
+
+        save_button = QPushButton("저장")
+        save_button.clicked.connect(self._on_save)
+
+        header_row = QHBoxLayout()
+        header_row.addWidget(title)
+        header_row.addStretch()
+        header_row.addWidget(save_button)
+
+        self._table = QTableWidget()
+        self._table.setColumnCount(4)
+        self._table.setHorizontalHeaderLabels(["성명", "부서", "기술등급\n(대외/제안서)", "기술등급\n(S/W자격증)"])
+        self._table.verticalHeader().setVisible(False)
+        self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._table.setAlternatingRowColors(True)
+        header = self._table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
+        self._table.setColumnWidth(0, 90)
+        self._table.setColumnWidth(1, 160)
+        self._table.setColumnWidth(2, 150)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+        layout.addLayout(header_row)
+        layout.addWidget(self._table)
+        self.setLayout(layout)
+
+        self._load()
+
+    def _load(self) -> None:
+        try:
+            self._employees = get_active_employees(self._config.database)
+            self._grade_options = get_grade_options(self._config.database)
+            grades = get_employee_grades(self._config.database)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "조회 실패", f"기술등급 정보 조회에 실패했습니다.\n{exc}")
+            return
+
+        self._table.setRowCount(len(self._employees))
+        for row_idx, employee in enumerate(self._employees):
+            name_item = QTableWidgetItem(employee.name)
+            name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self._table.setItem(row_idx, 0, name_item)
+
+            dept_item = QTableWidgetItem(employee.dept)
+            dept_item.setFlags(dept_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self._table.setItem(row_idx, 1, dept_item)
+
+            grade_external_div, grade_sw_div = grades.get(employee.empl_id, (None, None))
+            self._table.setCellWidget(
+                row_idx, 2, _build_code_combo(self._grade_options, _NO_GRADE_LABEL, grade_external_div)
+            )
+            self._table.setCellWidget(
+                row_idx, 3, _build_code_combo(self._grade_options, _NO_GRADE_LABEL, grade_sw_div)
+            )
+            self._table.setRowHeight(row_idx, _ROW_HEIGHT)
+
+    def _on_save(self) -> None:
+        updates = []
+        for row_idx, employee in enumerate(self._employees):
+            grade_external_combo = self._table.cellWidget(row_idx, 2)
+            grade_sw_combo = self._table.cellWidget(row_idx, 3)
+            updates.append(
+                (
+                    employee.empl_id,
+                    grade_external_combo.currentData() if grade_external_combo else None,
+                    grade_sw_combo.currentData() if grade_sw_combo else None,
+                )
+            )
+        try:
+            save_employee_grades(self._config.database, updates, self._current_empl_id)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "저장 실패", f"저장에 실패했습니다.\n{exc}")
+            return
+        QMessageBox.information(self, "저장", "저장되었습니다.")
 
 
 class ProjectManpowerDialog(QDialog):
@@ -167,14 +305,18 @@ class ProjectManpowerDialog(QDialog):
         super().__init__(parent)
         self._config = app_config
         self._user = user
-        self._projects: list[ProjectMeta] = []
         self._role_options: list[tuple[str, str]] = []
-        self._grade_options: list[tuple[str, str]] = []
-        self._employee_rows: list[EmployeeRow] = []
-        self._syncing_scroll = False
+        self._participation_rows: list[ParticipationRow] = []
+        self._active_employees = []
+        self._projects: list[ProjectMeta] = []
+        self._month_combo_refs: list[list[QComboBox]] = []
+        self._period_months_list: list[tuple[int, int]] = []
+        current_year = date.today().year
+        self._start_year, self._start_month = current_year, 1
+        self._end_year, self._end_month = current_year, 12
 
         self.setWindowTitle("한국도로공사 투입인력관리")
-        self.resize(1400, 720)
+        self.resize(1500, 720)
 
         title_label = QLabel("한국도로공사 투입인력관리")
         title_label.setProperty("role", "title")
@@ -182,21 +324,54 @@ class ProjectManpowerDialog(QDialog):
         self._status_label = QLabel("")
         self._status_label.setProperty("role", "secondary")
 
-        self._matrix_radio = QRadioButton("매트릭스 보기")
-        self._matrix_radio.setChecked(True)
+        self._list_radio = QRadioButton("목록(투입률) 보기")
+        self._list_radio.setChecked(True)
         self._wbs_radio = QRadioButton("WBS(월별) 보기")
+        self._person_radio = QRadioButton("사람기준 보기")
         self._view_mode_group = QButtonGroup(self)
-        self._view_mode_group.addButton(self._matrix_radio)
+        self._view_mode_group.addButton(self._list_radio)
         self._view_mode_group.addButton(self._wbs_radio)
-        self._matrix_radio.toggled.connect(self._on_view_mode_changed)
+        self._view_mode_group.addButton(self._person_radio)
+        self._list_radio.toggled.connect(self._on_view_mode_changed)
+        self._wbs_radio.toggled.connect(self._on_view_mode_changed)
+        self._person_radio.toggled.connect(self._on_view_mode_changed)
+
+        def _build_year_combo() -> QComboBox:
+            combo = QComboBox()
+            for year in range(current_year - 1, current_year + 4):
+                combo.addItem(f"{year}년", year)
+            return combo
+
+        def _build_month_combo() -> QComboBox:
+            combo = QComboBox()
+            for month in range(1, 13):
+                combo.addItem(f"{month}월", month)
+            return combo
+
+        self._start_year_combo = _build_year_combo()
+        self._start_year_combo.setCurrentIndex(self._start_year_combo.findData(self._start_year))
+        self._start_month_combo = _build_month_combo()
+        self._start_month_combo.setCurrentIndex(self._start_month_combo.findData(self._start_month))
+        self._end_year_combo = _build_year_combo()
+        self._end_year_combo.setCurrentIndex(self._end_year_combo.findData(self._end_year))
+        self._end_month_combo = _build_month_combo()
+        self._end_month_combo.setCurrentIndex(self._end_month_combo.findData(self._end_month))
+
+        search_period_button = QPushButton("조회")
+        search_period_button.setProperty("variant", "secondary")
+        search_period_button.clicked.connect(self._on_search_period)
 
         refresh_button = QPushButton("새로고침")
         refresh_button.setProperty("variant", "secondary")
         refresh_button.clicked.connect(self._load_data)
 
-        add_project_button = QPushButton("+ 프로젝트 추가")
-        add_project_button.setProperty("variant", "secondary")
-        add_project_button.clicked.connect(self._on_add_project)
+        add_participant_button = QPushButton("+ 참여자 추가")
+        add_participant_button.setProperty("variant", "secondary")
+        add_participant_button.clicked.connect(self._on_add_participant)
+
+        grade_button = QPushButton("기술등급 관리")
+        grade_button.setProperty("variant", "secondary")
+        grade_button.clicked.connect(self._on_manage_grades)
 
         export_button = QPushButton("엑셀로 저장")
         export_button.setProperty("variant", "secondary")
@@ -208,59 +383,34 @@ class ProjectManpowerDialog(QDialog):
         header_row = QHBoxLayout()
         header_row.addWidget(title_label)
         header_row.addSpacing(20)
-        header_row.addWidget(self._matrix_radio)
+        header_row.addWidget(self._list_radio)
         header_row.addWidget(self._wbs_radio)
+        header_row.addWidget(self._person_radio)
+        header_row.addSpacing(12)
+        header_row.addWidget(QLabel("조회기간:"))
+        header_row.addWidget(self._start_year_combo)
+        header_row.addWidget(self._start_month_combo)
+        header_row.addWidget(QLabel("~"))
+        header_row.addWidget(self._end_year_combo)
+        header_row.addWidget(self._end_month_combo)
+        header_row.addWidget(search_period_button)
         header_row.addStretch()
         header_row.addWidget(refresh_button)
-        header_row.addWidget(add_project_button)
+        header_row.addWidget(add_participant_button)
+        header_row.addWidget(grade_button)
         header_row.addWidget(export_button)
         header_row.addWidget(self._save_button)
 
-        # 틀고정 패널(번호/성명/입사일/부서) — 항상 보임, 자체 스크롤 없음
-        self._frozen_table = QTableWidget()
-        self._frozen_table.setColumnCount(FROZEN_COL_COUNT)
-        self._frozen_table.setHorizontalHeaderLabels(FROZEN_COLUMNS)
-        self._frozen_table.verticalHeader().setVisible(False)
-        self._frozen_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._frozen_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self._frozen_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._frozen_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._frozen_table.setColumnWidth(0, 50)
-        self._frozen_table.setColumnWidth(1, 80)
-        self._frozen_table.setColumnWidth(2, 90)
-        self._frozen_table.setColumnWidth(3, 110)
-        self._frozen_table.setFixedWidth(50 + 80 + 90 + 110 + 2)
-
-        # 나머지(직급/기술등급/참여여부/PM,PL여부 + 프로젝트 블록) — 가로 스크롤
-        self._data_table = QTableWidget()
-        self._data_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
-        self._data_table.verticalHeader().setVisible(False)
-
-        for table in (self._frozen_table, self._data_table):
-            header = table.horizontalHeader()
-            header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-            header.setMinimumSectionSize(50)
-            header.setFixedHeight(96)
-            table.setMinimumHeight(560)
-
-        # 프로젝트 블록 헤더 우클릭 -> 프로젝트 삭제
-        data_header = self._data_table.horizontalHeader()
-        data_header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        data_header.customContextMenuRequested.connect(self._on_header_context_menu)
-
-        self._frozen_table.verticalScrollBar().valueChanged.connect(
-            lambda v: self._sync_scroll(self._data_table, v)
-        )
-        self._data_table.verticalScrollBar().valueChanged.connect(
-            lambda v: self._sync_scroll(self._frozen_table, v)
-        )
-
-        tables_row = QHBoxLayout()
-        tables_row.setSpacing(0)
-        tables_row.addWidget(self._frozen_table)
-        tables_row.addWidget(self._data_table)
-        matrix_page = QWidget()
-        matrix_page.setLayout(tables_row)
+        # 목록(투입률) 보기 — 첨부 엑셀 시트01과 동일: 한 행 = 직원 1명의 프로젝트 1건 참여
+        self._list_table = QTableWidget()
+        self._list_table.verticalHeader().setVisible(False)
+        self._list_table.setAlternatingRowColors(True)
+        self._list_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._list_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self._list_table.horizontalHeader().setStretchLastSection(True)
+        self._list_table.setMinimumHeight(560)
+        self._list_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._list_table.customContextMenuRequested.connect(self._on_row_context_menu)
 
         # WBS(월별) 보기 — 프로젝트별 헤더 행 + 참여 직원의 계약기간을 월별 막대로 표시
         self._wbs_table = QTableWidget()
@@ -269,10 +419,22 @@ class ProjectManpowerDialog(QDialog):
         self._wbs_table.verticalHeader().setVisible(False)
         self._wbs_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self._wbs_table.setMinimumHeight(560)
+        self._wbs_table.setAlternatingRowColors(True)
+
+        # 사람기준 보기 — 직원별로 참여 중인 프로젝트마다 한 행, 계약기간을 월별
+        # 막대로 표시한다("프로젝트 현황(사람기준).xlsx" 레이아웃 참조).
+        self._person_table = QTableWidget()
+        self._person_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._person_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self._person_table.verticalHeader().setVisible(False)
+        self._person_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self._person_table.setMinimumHeight(560)
+        self._person_table.setAlternatingRowColors(True)
 
         self._view_stack = QStackedWidget()
-        self._view_stack.addWidget(matrix_page)
+        self._view_stack.addWidget(self._list_table)
         self._view_stack.addWidget(self._wbs_table)
+        self._view_stack.addWidget(self._person_table)
 
         layout = QVBoxLayout()
         layout.setContentsMargins(16, 16, 16, 16)
@@ -289,206 +451,322 @@ class ProjectManpowerDialog(QDialog):
 
         self._load_data()
 
-    def _sync_scroll(self, target: QTableWidget, value: int) -> None:
-        if self._syncing_scroll:
+    def _on_view_mode_changed(self, checked: bool) -> None:
+        if not checked:
             return
-        self._syncing_scroll = True
-        target.verticalScrollBar().setValue(value)
-        self._syncing_scroll = False
+        if self._list_radio.isChecked():
+            index = 0
+        elif self._wbs_radio.isChecked():
+            index = 1
+        else:
+            index = 2
+        self._view_stack.setCurrentIndex(index)
+        self._save_button.setEnabled(index == 0)
 
-    def _on_view_mode_changed(self, _checked: bool) -> None:
-        is_matrix = self._matrix_radio.isChecked()
-        self._view_stack.setCurrentIndex(0 if is_matrix else 1)
-        self._save_button.setEnabled(is_matrix)
+    def _on_search_period(self) -> None:
+        start_year = self._start_year_combo.currentData()
+        start_month = self._start_month_combo.currentData()
+        end_year = self._end_year_combo.currentData()
+        end_month = self._end_month_combo.currentData()
+        if (start_year, start_month) > (end_year, end_month):
+            QMessageBox.warning(self, "조회기간", "시작 연월이 종료 연월보다 늦을 수 없습니다.")
+            return
+
+        self._start_year, self._start_month = start_year, start_month
+        self._end_year, self._end_month = end_year, end_month
+        self._load_data()
 
     # ------------------------------------------------------------------
     # 데이터 로드
     # ------------------------------------------------------------------
     def _load_data(self) -> None:
+        self._period_months_list = _period_months(
+            self._start_year, self._start_month, self._end_year, self._end_month
+        )
         try:
             self._role_options = get_role_options(self._config.database)
-            self._grade_options = get_grade_options(self._config.database)
-            self._projects = get_tracked_projects(self._config.database)
-            self._employee_rows = get_employee_matrix(
-                self._config.database, [p.prj_id for p in self._projects]
+            self._participation_rows = get_participation_rows(
+                self._config.database, self._start_year, self._start_month, self._end_year, self._end_month
             )
+            self._active_employees = get_active_employees(self._config.database)
+            self._projects = get_tracked_projects(self._config.database)
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "조회 실패", f"투입인력 정보 조회에 실패했습니다.\n{exc}")
             return
 
-        self._build_tables()
+        self._build_list_table()
         self._build_wbs_table()
+        self._build_person_table()
         self._status_label.setText(
-            f"직원 {len(self._employee_rows)}명 · 프로젝트 {len(self._projects)}건"
+            f"참여 {len(self._participation_rows)}건 · 프로젝트 {len(self._projects)}건 · "
+            f"{self._start_year}.{self._start_month:02d} ~ {self._end_year}.{self._end_month:02d} 기준"
         )
 
     # ------------------------------------------------------------------
-    # 테이블 구성
+    # 목록(투입률) 보기
     # ------------------------------------------------------------------
-    def _build_tables(self) -> None:
-        row_count = len(self._employee_rows)
+    def _compute_list_column_widths(
+        self, rows: list[ParticipationRow], month_headers: list[str]
+    ) -> list[int]:
+        """헤더 텍스트/드롭다운 옵션 중 가장 긴 것에 맞춰 컬럼 폭을 계산한다. 조회기간이
+        연도를 걸치면 월 헤더가 "2026.11월"처럼 길어지므로, 고정폭 대신 실제 내용
+        길이를 재서 잘리지 않게 한다."""
+        cell_metrics = QFontMetrics(self._list_table.font())
+        header_metrics = QFontMetrics(self._list_table.horizontalHeader().font())
 
-        self._frozen_table.setRowCount(row_count)
-        for row_idx, employee in enumerate(self._employee_rows):
-            values = [str(employee.seq), employee.name, employee.join_date, employee.dept]
-            for col_idx, text in enumerate(values):
+        def widest(texts: list[str], header_text: str, padding: int, min_width: int, max_width: int) -> int:
+            candidates = [cell_metrics.horizontalAdvance(t) for t in texts]
+            candidates.append(header_metrics.horizontalAdvance(header_text))
+            return max(min_width, min(max(candidates, default=0) + padding, max_width))
+
+        period_texts = [f"{p.start_date} ~ {p.end_date}" for p in rows] or ["9999-99-99 ~ 9999-99-99"]
+        client_texts = [p.client_name for p in rows] or ["발주처"]
+        name_texts = [p.empl_name for p in rows] or ["성명"]
+        role_texts = [_NO_ROLE_LABEL] + [name for _, name in self._role_options]
+        resdng_texts = [_NO_RESIDENCE_LABEL] + RESIDENCE_OPTIONS
+        month_option_texts = [f"{value}%" for value in RATE_OPTIONS]
+        widest_month_header = max(month_headers, key=len, default="2026.12월")
+
+        return [
+            widest(["999"], "순번", 24, 46, 70),
+            260,  # 사업명
+            widest(client_texts, "발주처", 24, 90, 220),
+            widest(period_texts, "사업기간", 28, 150, 220),
+            widest(name_texts, "성명", 24, 60, 120),
+            widest(resdng_texts, "상주/비상주", 40, 100, 170),  # +콤보 드롭다운 화살표 여유
+            widest(role_texts, "역할", 40, 100, 190),
+            widest(["100.0%"], "투입률(합계)", 24, 100, 140),
+            widest(month_option_texts, widest_month_header, 34, 65, 115),
+        ]
+
+    def _build_list_table(self) -> None:
+        rows = self._participation_rows
+        months = self._period_months_list
+        remark_col = LIST_FIXED_COL_COUNT + len(months)
+
+        self._list_table.clear()
+        self._list_table.setColumnCount(remark_col + 1)
+        month_headers = [f"{y}.{m}월" for y, m in months]
+        headers = list(LIST_COLUMNS) + month_headers + ["비고"]
+        self._list_table.setHorizontalHeaderLabels(headers)
+
+        widths = self._compute_list_column_widths(rows, month_headers)
+        for col_idx, width in enumerate(widths[:LIST_FIXED_COL_COUNT]):
+            self._list_table.setColumnWidth(col_idx, width)
+        for col in range(LIST_FIXED_COL_COUNT, remark_col):
+            self._list_table.setColumnWidth(col, widths[LIST_FIXED_COL_COUNT])
+        self._list_table.setColumnWidth(remark_col, 180)
+
+        self._list_table.setRowCount(len(rows))
+        self._month_combo_refs = []
+
+        for row_idx, prow in enumerate(rows):
+            self._list_table.setRowHeight(row_idx, _ROW_HEIGHT)
+
+            readonly_values = {
+                0: str(row_idx + 1),
+                1: prow.prj_name,
+                2: prow.client_name,
+                3: f"{prow.start_date} ~ {prow.end_date}",
+                4: prow.empl_name,
+            }
+            for col_idx, text in readonly_values.items():
                 item = QTableWidgetItem(text)
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self._frozen_table.setItem(row_idx, col_idx, item)
-            self._frozen_table.setRowHeight(row_idx, _ROW_HEIGHT)
+                if col_idx == 0:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self._list_table.setItem(row_idx, col_idx, item)
 
-        column_count = SCROLL_FIXED_COL_COUNT + BLOCK_SIZE * len(self._projects)
-        self._data_table.clear()
-        self._data_table.setColumnCount(column_count)
-        self._data_table.setRowCount(row_count)
+            resdng_combo = _build_choice_combo(RESIDENCE_OPTIONS, _NO_RESIDENCE_LABEL, prow.resdng_div)
+            self._list_table.setCellWidget(row_idx, 5, resdng_combo)
 
-        headers = list(SCROLL_FIXED_COLUMNS)
-        block_widths: list[int] = []
-        for project in self._projects:
-            period = f"{project.start_date} ~ {project.end_date}"
-            meta = f"{project.prj_name}\n{project.client_name}\n{period}\n총 {project.total_days}일"
-            header_text = f"{meta}\n참여"
-            headers.append(header_text)
-            headers.extend(BLOCK_LABELS[1:])
-            block_widths.append(self._measure_header_width(header_text))
-        self._data_table.setHorizontalHeaderLabels(headers)
+            role_combo = _build_code_combo(self._role_options, _NO_ROLE_LABEL, prow.role_div)
+            self._list_table.setCellWidget(row_idx, 6, role_combo)
 
-        for col_idx, name in enumerate(SCROLL_FIXED_COLUMNS):
-            width = 90 if "기술등급" in name else 80
-            self._data_table.setColumnWidth(col_idx, width)
-        for block_idx, block_start in enumerate(
-            range(SCROLL_FIXED_COL_COUNT, column_count, BLOCK_SIZE)
-        ):
-            self._data_table.setColumnWidth(block_start, block_widths[block_idx])  # 참여(+사업명 등)
-            self._data_table.setColumnWidth(block_start + 1, 110)  # 역할
-            self._data_table.setColumnWidth(block_start + 2, 55)  # 상주
-            self._data_table.setColumnWidth(block_start + 3, 55)  # 비상주
-            self._data_table.setColumnWidth(block_start + 4, 160)  # 비고
+            total_item = QTableWidgetItem("")
+            total_item.setFlags(total_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            total_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            font = QFont()
+            font.setBold(True)
+            total_item.setFont(font)
+            self._list_table.setItem(row_idx, 7, total_item)
 
-        for row_idx, employee in enumerate(self._employee_rows):
-            self._fill_scroll_fixed_columns(row_idx, employee)
-            for block_idx, project in enumerate(self._projects):
-                col = SCROLL_FIXED_COL_COUNT + block_idx * BLOCK_SIZE
-                cell = employee.cells.get(project.prj_id, ProjectCell())
-                self._fill_project_block(row_idx, col, cell)
-            self._data_table.setRowHeight(row_idx, _ROW_HEIGHT)
+            month_combos: list[QComboBox] = []
+            for offset, (year, month) in enumerate(months):
+                yyyymm = f"{year:04d}{month:02d}"
+                percent = prow.monthly_rates.get(yyyymm, 0)
+                combo = QComboBox()
+                for value in RATE_OPTIONS:
+                    combo.addItem(f"{value}%", value)
+                combo.setCurrentIndex(RATE_OPTIONS.index(percent) if percent in RATE_OPTIONS else 0)
+                combo.currentIndexChanged.connect(lambda _idx, r=row_idx: self._recompute_total(r))
+                self._list_table.setCellWidget(row_idx, LIST_FIXED_COL_COUNT + offset, combo)
+                month_combos.append(combo)
+            self._month_combo_refs.append(month_combos)
 
-    def _measure_header_width(self, header_text: str) -> int:
-        """프로젝트 블록의 "참여" 컬럼 폭을 사업명 등 헤더 텍스트의 가장 긴 줄에 맞춰
-        자동으로 계산한다 (너무 길면 최대폭에서 Qt가 알아서 말줄임표로 잘라 보여준다)."""
-        metrics = QFontMetrics(self._data_table.horizontalHeader().font())
-        widest_line = max(
-            (metrics.horizontalAdvance(line) for line in header_text.split("\n")), default=0
-        )
-        return max(_PARTICIPATE_COL_MIN_WIDTH, min(widest_line + _HEADER_TEXT_PADDING, _PARTICIPATE_COL_MAX_WIDTH))
+            remark_item = QTableWidgetItem(prow.remark)
+            self._list_table.setItem(row_idx, remark_col, remark_item)
 
-    def _fill_scroll_fixed_columns(self, row_idx: int, employee: EmployeeRow) -> None:
-        readonly_values = {
-            0: employee.position,
-            3: "O" if employee.participates else "",
-            4: "O" if employee.is_pm_or_pl else "",
+            self._recompute_total(row_idx)
+
+    def _recompute_total(self, row_idx: int) -> None:
+        if row_idx >= len(self._month_combo_refs):
+            return
+        combos = self._month_combo_refs[row_idx]
+        values = [combo.currentData() for combo in combos]
+        avg = sum(values) / len(values) if values else 0
+        item = self._list_table.item(row_idx, 7)
+        if item:
+            item.setText(f"{avg:.1f}%")
+
+    def _read_current_row(
+        self, row_idx: int
+    ) -> tuple[str | None, str | None, str, dict[str, int]]:
+        resdng_combo = self._list_table.cellWidget(row_idx, 5)
+        role_combo = self._list_table.cellWidget(row_idx, 6)
+        remark_col = LIST_FIXED_COL_COUNT + len(self._period_months_list)
+        remark_item = self._list_table.item(row_idx, remark_col)
+        monthly = {
+            f"{year:04d}{month:02d}": combo.currentData()
+            for (year, month), combo in zip(self._period_months_list, self._month_combo_refs[row_idx])
         }
-        for col_idx, text in readonly_values.items():
-            item = QTableWidgetItem(text)
-            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._data_table.setItem(row_idx, col_idx, item)
-
-        self._data_table.setCellWidget(
-            row_idx, 1, self._build_grade_combo(employee.grade_external_div)
+        return (
+            resdng_combo.currentData() if resdng_combo else None,
+            role_combo.currentData() if role_combo else None,
+            remark_item.text().strip() if remark_item else "",
+            monthly,
         )
-        self._data_table.setCellWidget(row_idx, 2, self._build_grade_combo(employee.grade_sw_div))
-
-    def _build_grade_combo(self, current_div: str | None) -> QComboBox:
-        combo = QComboBox()
-        combo.addItem(_NO_GRADE_LABEL, None)
-        selected_index = 0
-        for idx, (code, name) in enumerate(self._grade_options, start=1):
-            combo.addItem(name, code)
-            if code == current_div:
-                selected_index = idx
-        combo.setCurrentIndex(selected_index)
-        return combo
-
-    def _fill_project_block(self, row_idx: int, col: int, cell: ProjectCell) -> None:
-        participate_item = QTableWidgetItem()
-        participate_item.setFlags(
-            Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-        )
-        participate_item.setCheckState(
-            Qt.CheckState.Checked if cell.participate else Qt.CheckState.Unchecked
-        )
-        self._data_table.setItem(row_idx, col, participate_item)
-
-        role_combo = QComboBox()
-        role_combo.addItem(_NO_ROLE_LABEL, None)
-        selected_index = 0
-        for idx, (code, name) in enumerate(self._role_options, start=1):
-            role_combo.addItem(name, code)
-            if code == cell.role_div:
-                selected_index = idx
-        role_combo.setCurrentIndex(selected_index)
-        self._data_table.setCellWidget(row_idx, col + 1, role_combo)
-
-        resident_item = QTableWidgetItem()
-        resident_item.setFlags(
-            Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-        )
-        resident_item.setCheckState(
-            Qt.CheckState.Checked if cell.resident else Qt.CheckState.Unchecked
-        )
-        self._data_table.setItem(row_idx, col + 2, resident_item)
-
-        non_resident_item = QTableWidgetItem()
-        non_resident_item.setFlags(
-            Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-        )
-        non_resident_item.setCheckState(
-            Qt.CheckState.Checked if cell.non_resident else Qt.CheckState.Unchecked
-        )
-        self._data_table.setItem(row_idx, col + 3, non_resident_item)
-
-        remark_item = QTableWidgetItem(cell.remark)
-        self._data_table.setItem(row_idx, col + 4, remark_item)
 
     # ------------------------------------------------------------------
-    # WBS(월별) 보기 — 첨부 "도로공사 투입 WBS 형태.xlsx" 레이아웃 참조:
-    # 프로젝트명 헤더 행 다음에 참여 직원(성명/역할) 행이 이어지고, 그 직원이 해당
-    # 프로젝트에 계약기간 동안 투입된 개월을 색칠된 막대로 표시한다. tb_extms에 저장된
-    # "참여" 여부와 프로젝트 계약기간(tb_prj_info)만으로 만드는 파생 뷰라 별도 월별
-    # 편집 데이터는 없다 — 마지막으로 저장한 매트릭스 상태를 기준으로 그린다.
+    # 참여자 추가 / 삭제
     # ------------------------------------------------------------------
-    def _wbs_row_spec(self) -> list[tuple[str, str, str, str, str]]:
-        """(kind, 텍스트/성명, 역할, 시작일, 종료일) 목록. kind는 'header' 또는 'data'."""
-        rows: list[tuple[str, str, str, str, str]] = []
-        for project in self._projects:
-            rows.append(("header", project.prj_name, "", "", ""))
-            for employee in self._employee_rows:
-                cell = employee.cells.get(project.prj_id)
-                if cell and cell.participate:
-                    rows.append(
-                        ("data", employee.name, cell.role_name, project.start_date, project.end_date)
-                    )
+    def _on_add_participant(self) -> None:
+        dialog = _AddParticipantDialog(self._config, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        if not dialog.selected_prj_id or not dialog.selected_empl_id:
+            return
+
+        try:
+            already_exists = participation_exists(
+                self._config.database, dialog.selected_prj_id, dialog.selected_empl_id
+            )
+            if already_exists:
+                QMessageBox.information(self, "참여자 추가", "이미 참여 중인 직원입니다.")
+                return
+            add_participant(
+                self._config.database, dialog.selected_prj_id, dialog.selected_empl_id, self._user.empl_id
+            )
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "추가 실패", f"참여자 추가에 실패했습니다.\n{exc}")
+            return
+
+        self._load_data()
+
+    def _on_row_context_menu(self, pos) -> None:
+        row = self._list_table.rowAt(pos.y())
+        if row < 0 or row >= len(self._participation_rows):
+            return
+        prow = self._participation_rows[row]
+
+        menu = QMenu(self)
+        delete_action = menu.addAction(f"{prow.empl_name} - '{prow.prj_name}' 참여 삭제")
+        chosen = menu.exec(self._list_table.viewport().mapToGlobal(pos))
+        if chosen == delete_action:
+            self._on_delete_participant(prow)
+
+    def _on_delete_participant(self, prow: ParticipationRow) -> None:
+        reply = QMessageBox.question(
+            self,
+            "참여 삭제",
+            f"'{prow.empl_name}'님의 '{prow.prj_name}' 참여 정보를 삭제할까요?\n"
+            "저장된 월별 투입률 데이터도 함께 삭제됩니다.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            remove_participant(self._config.database, prow.prj_id, prow.empl_id)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "삭제 실패", f"참여 삭제에 실패했습니다.\n{exc}")
+            return
+
+        self._load_data()
+
+    # ------------------------------------------------------------------
+    # 기술등급 관리
+    # ------------------------------------------------------------------
+    def _on_manage_grades(self) -> None:
+        dialog = _EmployeeGradeDialog(self._config, self._user.empl_id, parent=self)
+        dialog.exec()
+
+    # ------------------------------------------------------------------
+    # 저장
+    # ------------------------------------------------------------------
+    def _on_save(self) -> None:
+        if not self._participation_rows:
+            QMessageBox.information(self, "저장", "저장할 데이터가 없습니다.")
+            return
+
+        updates = []
+        for row_idx, prow in enumerate(self._participation_rows):
+            resdng_div, role_div, remark, monthly = self._read_current_row(row_idx)
+            updates.append((prow.prj_id, prow.empl_id, role_div, resdng_div, remark, monthly))
+
+        try:
+            save_participation_rows(self._config.database, updates, self._user.empl_id)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.critical(self, "저장 실패", f"저장에 실패했습니다.\n{exc}")
+            return
+
+        QMessageBox.information(self, "저장", "저장되었습니다.")
+        self._load_data()
+
+    # ------------------------------------------------------------------
+    # WBS(월별) 보기 — 프로젝트명 헤더 행 다음에 참여 직원(성명/역할) 행이 이어지고,
+    # 그 직원의 실제 입력된 월별 투입률이 5% 이상인 달만 색칠된 막대로 표시한다
+    # (계약기간이 아니라 목록 보기에서 실제로 입력한 투입률 기준).
+    # ------------------------------------------------------------------
+    _WBS_MIN_RATE = 5
+
+    def _wbs_row_spec(self) -> list[tuple[str, str, str, dict[str, int]]]:
+        """(kind, 텍스트/성명, 역할, 월별투입률) 목록. kind는 'header' 또는 'data'."""
+        rows: list[tuple[str, str, str, dict[str, int]]] = []
+        members_by_project: dict[str, list[ParticipationRow]] = {}
+        project_order: list[str] = []
+        for prow in self._participation_rows:
+            if prow.prj_id not in members_by_project:
+                members_by_project[prow.prj_id] = []
+                project_order.append(prow.prj_id)
+            members_by_project[prow.prj_id].append(prow)
+
+        for prj_id in project_order:
+            members = members_by_project[prj_id]
+            rows.append(("header", members[0].prj_name, "", {}))
+            for prow in members:
+                rows.append(("data", prow.empl_name, prow.role_name, prow.monthly_rates))
         return rows
 
     def _build_wbs_table(self) -> None:
         theme = current_theme()
-        months = _month_range(self._projects)
+        months = self._period_months_list
         rows_spec = self._wbs_row_spec()
+        month_headers = [f"{y}.{m}월" for y, m in months]
 
         self._wbs_table.clear()
         self._wbs_table.setColumnCount(WBS_FIXED_COL_COUNT + len(months))
-        self._wbs_table.setHorizontalHeaderLabels(
-            WBS_FIXED_COLUMNS + [f"{y}.{m}월" for y, m in months]
-        )
+        self._wbs_table.setHorizontalHeaderLabels(WBS_FIXED_COLUMNS + month_headers)
         self._wbs_table.setColumnWidth(0, 90)
         self._wbs_table.setColumnWidth(1, 90)
+        header_metrics = QFontMetrics(self._wbs_table.horizontalHeader().font())
+        month_width = _fitted_width(header_metrics, month_headers or ["2026.12월"], 24, 55, 100)
         for col in range(WBS_FIXED_COL_COUNT, WBS_FIXED_COL_COUNT + len(months)):
-            self._wbs_table.setColumnWidth(col, 55)
+            self._wbs_table.setColumnWidth(col, month_width)
 
         self._wbs_table.setRowCount(len(rows_spec))
-        for row_idx, (kind, name, role, start, end) in enumerate(rows_spec):
+        for row_idx, (kind, name, role, monthly_rates) in enumerate(rows_spec):
             self._wbs_table.setRowHeight(row_idx, _ROW_HEIGHT)
             if kind == "header":
                 item = QTableWidgetItem(name)
@@ -510,135 +788,131 @@ class ProjectManpowerDialog(QDialog):
             role_item.setFlags(role_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self._wbs_table.setItem(row_idx, 1, role_item)
 
-            start_d = date.fromisoformat(start) if start else None
-            end_d = date.fromisoformat(end) if end else None
             for offset, (y, m) in enumerate(months):
-                bar_item = QTableWidgetItem("")
+                rate = monthly_rates.get(f"{y:04d}{m:02d}", 0)
+                bar_item = QTableWidgetItem(f"{rate}%" if rate else "")
                 bar_item.setFlags(bar_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                if start_d and end_d and _month_overlaps(y, m, start_d, end_d):
-                    bar_item.setBackground(QColor(theme.sales_badge_bg))
+                bar_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                if rate >= self._WBS_MIN_RATE:
+                    bar_font = QFont()
+                    bar_font.setBold(True)
+                    bar_item.setFont(bar_font)
+                    bar_item.setBackground(QColor(theme.accent))
+                    bar_item.setForeground(QColor(theme.accent_text))
                 self._wbs_table.setItem(row_idx, WBS_FIXED_COL_COUNT + offset, bar_item)
 
     # ------------------------------------------------------------------
-    # 프로젝트 추가
+    # 사람기준 보기 — 직원별 한 행, 월별 투입률은 그 직원이 참여 중인 모든 프로젝트의
+    # 투입률 합계(100%를 넘으면 중복 투입 경고로 강조). 첨부 엑셀
+    # "02.인력별 투입현황" 시트 레이아웃을 그대로 따른다. 조회기간(목록 보기와 동일한
+    # 시작~종료 연/월) 기준으로 집계한다.
     # ------------------------------------------------------------------
-    def _on_add_project(self) -> None:
-        dialog = _AddProjectDialog(self._config, parent=self)
-        if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.selected_prj_id:
-            return
+    def _person_summary_rows(self):
+        """직원별 (부서/직위/입사일 + 월별 투입률 합계 리스트 + 평균 + 참여 프로젝트 수)."""
+        monthly_sums_by_empl: dict[str, dict[str, int]] = {}
+        project_ids_by_empl: dict[str, set] = {}
+        for prow in self._participation_rows:
+            month_sums = monthly_sums_by_empl.setdefault(prow.empl_id, {})
+            for yyyymm, percent in prow.monthly_rates.items():
+                month_sums[yyyymm] = month_sums.get(yyyymm, 0) + percent
+            project_ids_by_empl.setdefault(prow.empl_id, set()).add(prow.prj_id)
 
-        if any(p.prj_id == dialog.selected_prj_id for p in self._projects):
-            QMessageBox.information(self, "프로젝트 추가", "이미 추가된 프로젝트입니다.")
-            return
+        months = self._period_months_list
+        rows = []
+        for employee in self._active_employees:
+            month_sums = monthly_sums_by_empl.get(employee.empl_id, {})
+            monthly_values = [month_sums.get(f"{y:04d}{m:02d}", 0) for y, m in months]
+            avg = sum(monthly_values) / len(monthly_values) if monthly_values else 0
+            project_count = len(project_ids_by_empl.get(employee.empl_id, ()))
+            rows.append((employee, monthly_values, avg, project_count))
+        return rows
 
-        try:
-            add_project(self._config.database, dialog.selected_prj_id, self._user.empl_id)
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "추가 실패", f"프로젝트 추가에 실패했습니다.\n{exc}")
-            return
+    def _set_person_percent_cell(self, row_idx: int, col_idx: int, value: float) -> None:
+        """투입률(평균)/월별 투입률 % 칸. 100%를 넘으면 빨간색으로, 0%면 흐린 회색으로
+        표시해 "투입 없음"과 "실제 투입 중"이 한눈에 구분되게 한다."""
+        item = QTableWidgetItem(f"{round(value)}%")
+        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        theme = current_theme()
+        if value > 100:
+            font = QFont()
+            font.setBold(True)
+            item.setFont(font)
+            item.setForeground(QColor(theme.destructive))
+            item.setBackground(QColor(theme.destructive).lighter(175))
+        elif value == 0:
+            item.setForeground(QColor(theme.text_secondary))
+        self._person_table.setItem(row_idx, col_idx, item)
 
-        self._load_data()
+    def _set_person_count_cell(self, row_idx: int, col_idx: int, count: int, warn: bool) -> None:
+        item = QTableWidgetItem(str(count))
+        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        theme = current_theme()
+        if warn:
+            font = QFont()
+            font.setBold(True)
+            item.setFont(font)
+            item.setForeground(QColor(theme.destructive))
+            item.setBackground(QColor(theme.destructive).lighter(175))
+        elif count == 0:
+            item.setForeground(QColor(theme.text_secondary))
+        self._person_table.setItem(row_idx, col_idx, item)
 
-    # ------------------------------------------------------------------
-    # 프로젝트 삭제 (헤더 우클릭)
-    # ------------------------------------------------------------------
-    def _on_header_context_menu(self, pos) -> None:
-        header = self._data_table.horizontalHeader()
-        col = header.logicalIndexAt(pos)
-        if col < SCROLL_FIXED_COL_COUNT:
-            return
-        block_idx = (col - SCROLL_FIXED_COL_COUNT) // BLOCK_SIZE
-        if block_idx >= len(self._projects):
-            return
-        project = self._projects[block_idx]
+    def _build_person_table(self) -> None:
+        months = self._period_months_list
+        avg_col = PERSON_FIXED_COL_COUNT
+        month_start_col = avg_col + 1
+        count_col = month_start_col + len(months)
+        rows_spec = self._person_summary_rows()
+        month_headers = [f"{y}.{m}월" for y, m in months]
 
-        menu = QMenu(self)
-        delete_action = menu.addAction(f"'{project.prj_name}' 프로젝트 삭제")
-        chosen = menu.exec(header.mapToGlobal(pos))
-        if chosen == delete_action:
-            self._on_delete_project(project)
+        self._person_table.clear()
+        self._person_table.setColumnCount(count_col + 1)
+        headers = list(PERSON_FIXED_COLUMNS) + ["투입률"] + month_headers + ["투입사업수"]
+        self._person_table.setHorizontalHeaderLabels(headers)
 
-    def _on_delete_project(self, project: ProjectMeta) -> None:
-        reply = QMessageBox.question(
-            self,
-            "프로젝트 삭제",
-            f"'{project.prj_name}' 프로젝트를 투입인력관리에서 삭제할까요?\n"
-            "이 프로젝트에 저장된 모든 직원의 참여/역할/비고 데이터가 삭제됩니다.\n"
-            "(프로젝트 자체나 다른 화면의 데이터에는 영향이 없습니다.)",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+        widths = [50, 130, 90, 80, 90, 80]
+        for col_idx, width in enumerate(widths):
+            self._person_table.setColumnWidth(col_idx, width)
+        header_metrics = QFontMetrics(self._person_table.horizontalHeader().font())
+        cell_metrics = QFontMetrics(self._person_table.font())
+        month_width = max(
+            _fitted_width(header_metrics, month_headers or ["2026.12월"], 24, 55, 100),
+            _fitted_width(cell_metrics, ["100%", "150%", "200%"], 24, 55, 100),
         )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
+        for col in range(month_start_col, count_col):
+            self._person_table.setColumnWidth(col, month_width)
+        self._person_table.setColumnWidth(count_col, 80)
 
-        try:
-            remove_project(self._config.database, project.prj_id)
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "삭제 실패", f"프로젝트 삭제에 실패했습니다.\n{exc}")
-            return
+        self._person_table.setRowCount(len(rows_spec))
+        for row_idx, (employee, monthly_values, avg, project_count) in enumerate(rows_spec):
+            self._person_table.setRowHeight(row_idx, _ROW_HEIGHT)
+            has_overflow = any(value > 100 for value in monthly_values)
 
-        self._load_data()
+            info_values = [
+                str(row_idx + 1),
+                employee.dept,
+                employee.position,
+                employee.name,
+                employee.join_date,
+            ]
+            for col_idx, text in enumerate(info_values):
+                item = QTableWidgetItem(text)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self._person_table.setItem(row_idx, col_idx, item)
 
-    # ------------------------------------------------------------------
-    # 화면에 표시된(아직 저장 전일 수도 있는) 현재 셀 상태 읽기
-    # ------------------------------------------------------------------
-    def _read_current_cell(self, row_idx: int, block_idx: int) -> ProjectCell:
-        col = SCROLL_FIXED_COL_COUNT + block_idx * BLOCK_SIZE
-        participate_item = self._data_table.item(row_idx, col)
-        resident_item = self._data_table.item(row_idx, col + 2)
-        non_resident_item = self._data_table.item(row_idx, col + 3)
-        remark_item = self._data_table.item(row_idx, col + 4)
-        role_combo = self._data_table.cellWidget(row_idx, col + 1)
-
-        return ProjectCell(
-            participate=participate_item.checkState() == Qt.CheckState.Checked,
-            role_div=role_combo.currentData() if role_combo else None,
-            role_name=role_combo.currentText() if role_combo and role_combo.currentData() else "",
-            resident=resident_item.checkState() == Qt.CheckState.Checked,
-            non_resident=non_resident_item.checkState() == Qt.CheckState.Checked,
-            remark=remark_item.text().strip() if remark_item else "",
-        )
-
-    # ------------------------------------------------------------------
-    # 저장
-    # ------------------------------------------------------------------
-    def _on_save(self) -> None:
-        if not self._employee_rows:
-            QMessageBox.information(self, "저장", "저장할 데이터가 없습니다.")
-            return
-
-        cell_updates: list[tuple[str, str, ProjectCell]] = []
-        grade_updates: list[tuple[str, str | None, str | None]] = []
-        for row_idx, employee in enumerate(self._employee_rows):
-            for block_idx, project in enumerate(self._projects):
-                cell = self._read_current_cell(row_idx, block_idx)
-                cell_updates.append((project.prj_id, employee.empl_id, cell))
-
-            grade_external_combo = self._data_table.cellWidget(row_idx, 1)
-            grade_sw_combo = self._data_table.cellWidget(row_idx, 2)
-            grade_updates.append(
-                (
-                    employee.empl_id,
-                    grade_external_combo.currentData() if grade_external_combo else None,
-                    grade_sw_combo.currentData() if grade_sw_combo else None,
-                )
-            )
-
-        try:
-            save_matrix(self._config.database, cell_updates, self._user.empl_id)
-            save_employee_grades(self._config.database, grade_updates, self._user.empl_id)
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "저장 실패", f"저장에 실패했습니다.\n{exc}")
-            return
-
-        QMessageBox.information(self, "저장", "저장되었습니다.")
-        self._load_data()
+            self._set_person_percent_cell(row_idx, avg_col, avg)
+            for offset, value in enumerate(monthly_values):
+                self._set_person_percent_cell(row_idx, month_start_col + offset, value)
+            self._set_person_count_cell(row_idx, count_col, project_count, has_overflow)
 
     # ------------------------------------------------------------------
     # 엑셀로 저장
     # ------------------------------------------------------------------
     def _export_to_excel(self) -> None:
-        if not self._employee_rows:
+        if not self._participation_rows and not self._active_employees:
             QMessageBox.information(self, "엑셀로 저장", "저장할 데이터가 없습니다.")
             return
 
@@ -651,16 +925,66 @@ class ProjectManpowerDialog(QDialog):
         try:
             if self._wbs_radio.isChecked():
                 self._write_wbs_excel(path)
+            elif self._person_radio.isChecked():
+                self._write_person_excel(path)
             else:
-                self._write_excel(path)
+                self._write_list_excel(path)
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "저장 실패", f"엑셀 파일 저장에 실패했습니다.\n{exc}")
             return
 
         QMessageBox.information(self, "엑셀로 저장", f"저장이 완료되었습니다.\n{path}")
 
+    def _write_list_excel(self, path: str) -> None:
+        months = self._period_months_list
+        month_count = len(months)
+        total_col_count = LIST_FIXED_COL_COUNT + month_count + 1
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "투입인력관리"
+
+        headers = list(LIST_COLUMNS) + [f"{y}.{m}월" for y, m in months] + ["비고"]
+        for col_idx, text in enumerate(headers, start=1):
+            sheet.cell(row=1, column=col_idx, value=text)
+
+        for row_idx, prow in enumerate(self._participation_rows):
+            resdng_div, role_div, remark, monthly = self._read_current_row(row_idx)
+            role_name = dict(self._role_options).get(role_div, "") if role_div else ""
+            month_fractions = [monthly.get(f"{y:04d}{m:02d}", 0) / 100 for y, m in months]
+            avg = sum(month_fractions) / month_count if month_fractions else 0
+
+            excel_row = row_idx + 2
+            row_values = [
+                row_idx + 1,
+                prow.prj_name,
+                prow.client_name,
+                f"{prow.start_date} ~ {prow.end_date}",
+                prow.empl_name,
+                resdng_div or "",
+                role_name,
+                avg,
+            ] + month_fractions + [remark]
+            for col_idx, value in enumerate(row_values, start=1):
+                cell = sheet.cell(row=excel_row, column=col_idx, value=value)
+                if col_idx == 8 or LIST_FIXED_COL_COUNT < col_idx <= LIST_FIXED_COL_COUNT + month_count:
+                    cell.number_format = "0%"
+
+        sheet.column_dimensions["A"].width = 6
+        sheet.column_dimensions["B"].width = 40
+        sheet.column_dimensions["C"].width = 16
+        sheet.column_dimensions["D"].width = 22
+        sheet.column_dimensions["E"].width = 10
+        sheet.column_dimensions["F"].width = 12
+        sheet.column_dimensions["G"].width = 12
+        sheet.column_dimensions["H"].width = 10
+        for col_idx in range(LIST_FIXED_COL_COUNT + 1, total_col_count + 1):
+            sheet.column_dimensions[sheet.cell(row=1, column=col_idx).column_letter].width = 9
+
+        workbook.save(path)
+
     def _write_wbs_excel(self, path: str) -> None:
-        months = _month_range(self._projects)
+        months = self._period_months_list
         rows_spec = self._wbs_row_spec()
         total_cols = WBS_FIXED_COL_COUNT + len(months)
 
@@ -673,10 +997,11 @@ class ProjectManpowerDialog(QDialog):
         for col_idx, text in enumerate(headers, start=1):
             sheet.cell(row=header_row, column=col_idx, value=text)
 
-        header_fill = PatternFill(start_color="1E2761", end_color="1E2761", fill_type="solid")
-        bar_fill = PatternFill(start_color="E1EAFC", end_color="E1EAFC", fill_type="solid")
+        header_fill = PatternFill(start_color="31379E", end_color="31379E", fill_type="solid")
+        bar_fill = PatternFill(start_color="5678FF", end_color="5678FF", fill_type="solid")
+        bar_font = Font(color="FFFFFF", bold=True)
 
-        for row_idx, (kind, name, role, start, end) in enumerate(rows_spec, start=1):
+        for row_idx, (kind, name, role, monthly_rates) in enumerate(rows_spec, start=1):
             excel_row = header_row + row_idx
             if kind == "header":
                 sheet.cell(row=excel_row, column=1, value=name)
@@ -688,11 +1013,15 @@ class ProjectManpowerDialog(QDialog):
 
             sheet.cell(row=excel_row, column=1, value=name)
             sheet.cell(row=excel_row, column=2, value=role)
-            start_d = date.fromisoformat(start) if start else None
-            end_d = date.fromisoformat(end) if end else None
             for offset, (y, m) in enumerate(months):
-                if start_d and end_d and _month_overlaps(y, m, start_d, end_d):
-                    sheet.cell(row=excel_row, column=WBS_FIXED_COL_COUNT + 1 + offset).fill = bar_fill
+                rate = monthly_rates.get(f"{y:04d}{m:02d}", 0)
+                if not rate:
+                    continue
+                cell = sheet.cell(row=excel_row, column=WBS_FIXED_COL_COUNT + 1 + offset, value=rate / 100)
+                cell.number_format = "0%"
+                if rate >= self._WBS_MIN_RATE:
+                    cell.fill = bar_fill
+                    cell.font = bar_font
 
         sheet.column_dimensions["A"].width = 14
         sheet.column_dimensions["B"].width = 10
@@ -701,77 +1030,62 @@ class ProjectManpowerDialog(QDialog):
 
         workbook.save(path)
 
-    def _write_excel(self, path: str) -> None:
-        total_cols = FROZEN_COL_COUNT + SCROLL_FIXED_COL_COUNT + BLOCK_SIZE * len(self._projects)
+    def _write_person_excel(self, path: str) -> None:
+        months = self._period_months_list
+        rows_spec = self._person_summary_rows()
+        total_cols = PERSON_FIXED_COL_COUNT + 1 + len(months) + 1
 
         workbook = Workbook()
         sheet = workbook.active
-        sheet.title = "투입인력관리"
+        sheet.title = "사람기준 현황"
 
-        meta_labels = ["사업명", "발주기관", "계약기간", "총 투입기간(일)"]
-        for meta_row, label in enumerate(meta_labels, start=1):
-            sheet.cell(row=meta_row, column=1, value=label)
-            sheet.merge_cells(
-                start_row=meta_row, start_column=1, end_row=meta_row, end_column=FROZEN_COL_COUNT
-            )
-
-        for block_idx, project in enumerate(self._projects):
-            start_col = FROZEN_COL_COUNT + SCROLL_FIXED_COL_COUNT + block_idx * BLOCK_SIZE + 1
-            end_col = start_col + BLOCK_SIZE - 1
-            values = [
-                project.prj_name,
-                project.client_name,
-                f"{project.start_date} ~ {project.end_date}",
-                f"{project.total_days}일",
-            ]
-            for offset, value in enumerate(values, start=1):
-                sheet.cell(row=offset, column=start_col, value=value)
-                sheet.merge_cells(
-                    start_row=offset, start_column=start_col, end_row=offset, end_column=end_col
-                )
-
-        header_row = len(meta_labels) + 1
-        headers = (
-            [label.replace("\n", " ") for label in FROZEN_COLUMNS]
-            + [label.replace("\n", " ") for label in SCROLL_FIXED_COLUMNS]
-        )
-        for _ in self._projects:
-            headers.extend(BLOCK_LABELS)
+        headers = list(PERSON_FIXED_COLUMNS) + ["투입률"] + [f"{y}.{m}월" for y, m in months] + ["투입사업수"]
         for col_idx, text in enumerate(headers, start=1):
-            sheet.cell(row=header_row, column=col_idx, value=text)
+            sheet.cell(row=1, column=col_idx, value=text)
 
-        for row_idx, employee in enumerate(self._employee_rows):
-            excel_row = header_row + 1 + row_idx
-            grade_external_combo = self._data_table.cellWidget(row_idx, 1)
-            grade_sw_combo = self._data_table.cellWidget(row_idx, 2)
-            fixed_values = [
-                employee.seq,
-                employee.name,
-                employee.join_date,
-                employee.dept,
-                employee.position,
-                grade_external_combo.currentText() if grade_external_combo and grade_external_combo.currentData() else "",
-                grade_sw_combo.currentText() if grade_sw_combo and grade_sw_combo.currentData() else "",
-                "O" if employee.participates else "",
-                "O" if employee.is_pm_or_pl else "",
-            ]
-            for col_idx, value in enumerate(fixed_values, start=1):
+        warn_fill = PatternFill(start_color="FDE2E2", end_color="FDE2E2", fill_type="solid")
+        warn_font = Font(color="C0392B", bold=True)
+        zero_font = Font(color="9AA0A6")
+
+        for row_idx, (employee, monthly_values, avg, project_count) in enumerate(rows_spec, start=1):
+            excel_row = 1 + row_idx
+            has_overflow = any(value > 100 for value in monthly_values)
+
+            info_values = [row_idx, employee.dept, employee.position, employee.name, employee.join_date]
+            for col_idx, value in enumerate(info_values, start=1):
                 sheet.cell(row=excel_row, column=col_idx, value=value)
 
-            for block_idx, project in enumerate(self._projects):
-                cell = self._read_current_cell(row_idx, block_idx)
-                start_col = FROZEN_COL_COUNT + SCROLL_FIXED_COL_COUNT + block_idx * BLOCK_SIZE + 1
-                row_values = [
-                    "O" if cell.participate else "",
-                    cell.role_name,
-                    "O" if cell.resident else "",
-                    "O" if cell.non_resident else "",
-                    cell.remark,
-                ]
-                for offset, value in enumerate(row_values):
-                    sheet.cell(row=excel_row, column=start_col + offset, value=value)
+            avg_col = PERSON_FIXED_COL_COUNT + 1
+            avg_cell = sheet.cell(row=excel_row, column=avg_col, value=round(avg) / 100)
+            avg_cell.number_format = "0%"
+            if avg > 100:
+                avg_cell.fill = warn_fill
+                avg_cell.font = warn_font
+            elif avg == 0:
+                avg_cell.font = zero_font
 
-        for col_idx in range(1, total_cols + 1):
-            sheet.column_dimensions[sheet.cell(row=header_row, column=col_idx).column_letter].width = 14
+            for offset, value in enumerate(monthly_values):
+                cell = sheet.cell(row=excel_row, column=avg_col + 1 + offset, value=value / 100)
+                cell.number_format = "0%"
+                if value > 100:
+                    cell.fill = warn_fill
+                    cell.font = warn_font
+                elif value == 0:
+                    cell.font = zero_font
+
+            count_cell = sheet.cell(row=excel_row, column=total_cols, value=project_count)
+            if has_overflow:
+                count_cell.fill = warn_fill
+                count_cell.font = warn_font
+            elif project_count == 0:
+                count_cell.font = zero_font
+
+        sheet.column_dimensions["A"].width = 6
+        sheet.column_dimensions["B"].width = 16
+        sheet.column_dimensions["C"].width = 10
+        sheet.column_dimensions["D"].width = 10
+        sheet.column_dimensions["E"].width = 12
+        for col_idx in range(PERSON_FIXED_COL_COUNT + 1, total_cols + 1):
+            sheet.column_dimensions[sheet.cell(row=1, column=col_idx).column_letter].width = 9
 
         workbook.save(path)

@@ -73,7 +73,7 @@ class LoginWindow(QWidget):
         card_layout.addWidget(login_button)
 
         card = QWidget()
-        card.setProperty("role", "card")
+        card.setProperty("role", "modal-card")
         card.setFixedWidth(340)
         card.setLayout(card_layout)
 

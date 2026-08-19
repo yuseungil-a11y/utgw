@@ -89,6 +89,7 @@ class SalesPurchaseDialog(QDialog):
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setWordWrap(True)
+        self._table.setAlternatingRowColors(True)
 
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
@@ -158,10 +159,8 @@ class SalesPurchaseDialog(QDialog):
 
     def _populate_table(self) -> None:
         theme = current_theme()
-        badge_colors = {
-            "매출": (theme.sales_badge_bg, theme.sales_badge_text),
-            "매입": (theme.purchase_badge_bg, theme.purchase_badge_text),
-        }
+        # 디자인 가이드: 상태값은 배지(배경 채움) 대신 컬러 텍스트만으로 구분한다.
+        division_text_colors = {"매출": theme.sales_text, "매입": theme.purchase_text}
 
         self._table.setRowCount(len(self._rows))
         for row_idx, row in enumerate(self._rows):
@@ -171,11 +170,9 @@ class SalesPurchaseDialog(QDialog):
                 if isinstance(value, int):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 if col_idx == _DIVISION_COL:
-                    colors = badge_colors.get(value)
-                    if colors is not None:
-                        bg, fg = colors
-                        item.setBackground(QColor(bg))
-                        item.setForeground(QColor(fg))
+                    color = division_text_colors.get(value)
+                    if color is not None:
+                        item.setForeground(QColor(color))
                         font = QFont()
                         font.setBold(True)
                         item.setFont(font)

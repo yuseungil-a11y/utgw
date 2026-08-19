@@ -19,6 +19,7 @@ from app.ui.project_cost_dialog import ProjectCostDialog
 from app.ui.project_manpower_dialog import ProjectManpowerDialog
 from app.ui.sales_purchase_dialog import SalesPurchaseDialog
 from app.ui.theme import build_menu_tree_qss, current_theme
+from app.version import APP_VERSION
 
 CONTENT_KEY_ROLE = Qt.ItemDataRole.UserRole + 1
 
@@ -65,7 +66,7 @@ class MainWindow(QMainWindow):
         """OS 다크/라이트 모드 변경 시 메뉴 트리·상단바·대시보드 차트를 다시 칠한다."""
         theme = current_theme()
         self._menu_tree.setStyleSheet(build_menu_tree_qss(theme))
-        self._topbar.setStyleSheet(f"background-color: {theme.accent};")
+        self._topbar.setStyleSheet(f"background-color: {theme.header_bg};")
         self._placeholder_label.setStyleSheet(f"color: {theme.text_secondary}; font-size: 14px;")
         self._dashboard_view.refresh()
 
@@ -76,12 +77,17 @@ class MainWindow(QMainWindow):
         title = QLabel("유티정보 경영관리 그룹웨어")
         title.setStyleSheet("color: white; font-size: 14px; font-weight: 600;")
 
+        version_label = QLabel(f"v{APP_VERSION}")
+        version_label.setStyleSheet("color: rgba(255, 255, 255, 0.65); font-size: 11px;")
+
         user_label = QLabel(f"로그인: {self._user.empl_nm}")
         user_label.setStyleSheet("color: white; font-size: 12px;")
 
         layout = QHBoxLayout()
         layout.setContentsMargins(16, 0, 16, 0)
+        layout.setSpacing(8)
         layout.addWidget(title)
+        layout.addWidget(version_label)
         layout.addStretch()
         layout.addWidget(user_label)
         bar.setLayout(layout)

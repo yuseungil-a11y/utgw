@@ -1,25 +1,28 @@
-"""한국도로공사 투입인력관리 - 직원 x 프로젝트 매트릭스 조회/편집.
+"""한국도로공사 투입인력관리 - 참여 목록(프로젝트 x 직원) 조회/편집.
 
-레이아웃은 사용자가 제공한 엑셀(`한국도로공사 프로젝트 현황_2026.xlsx`,
-시트 `도공_프로젝트 투입 현황`)을 참조했다: 직원별 행 + 프로젝트별로 반복되는
-5개 컬럼(참여/역할/상주/비상주/비고) 블록의 매트릭스.
+레이아웃은 사용자가 제공한 엑셀(`한국도로공사 프로젝트별 인력 투입현황_v1.0.xlsx`,
+시트 `01.2026년_프로젝트별 투입현황`)을 그대로 따른다: 한 행 = 한 직원의 한 프로젝트
+참여 건. 월별 투입률(%, 5% 단위)을 직접 입력하고, 투입률(합계)은 그 평균으로
+화면에서 자동 계산한다.
 
 이 화면이 이 앱에서 처음으로 쓰기(INSERT/UPDATE)가 필요한 화면이라, 신규 테이블
-tb_extms(PRJ_ID, EMPL_ID 복합키)를 만들어 참여 정보를 저장한다. "이 화면에 표시되는
+tb_extms(PRJ_ID, EMPL_ID 복합키)를 만들어 참여 정보를 저장한다. 월별 투입률은 별도
+테이블 tb_extms_month(PRJ_ID, EMPL_ID, YYYYMM 복합키)에 저장한다. "이 화면에 표시되는
 프로젝트 목록" = tb_extms에 이미 행이 있는 PRJ_ID의 DISTINCT 집합이다.
 
 코드값 출처(tb_sub_category에서 확인):
 - 기술등급: 처음엔 tb_technology_grade를 참조했으나, 사용자 요청으로 DB 참조를 끊고
-  이 화면에서 직접 드롭다운으로 선택/저장하도록 변경했다. 선택값은 신규 테이블
-  tb_extms_empl(EMPL_ID 단일키)에 저장하고, 드롭다운 목록은 tb_sub_category
-  (MACTG_CD='A4': 초급기능사~기술사)를 그대로 재사용한다.
+  별도 화면(기술등급 관리)에서 직접 드롭다운으로 선택/저장하도록 변경했다. 선택값은
+  신규 테이블 tb_extms_empl(EMPL_ID 단일키)에 저장하고, 드롭다운 목록은
+  tb_sub_category(MACTG_CD='A4': 초급기능사~기술사)를 그대로 재사용한다.
 - 직급: tb_employee.RNK -> tb_sub_category(MACTG_CD='A1')
 - 부서: tb_employee.ORG_ID -> tb_organization
 - 역할 드롭다운: tb_sub_category(MACTG_CD='P2')
+- 상주/비상주: 첨부 엑셀에는 한 행에 하나의 값만 있어 코드 테이블 없이 '상주'/'비상주'
+  텍스트를 그대로 저장한다(tb_extms.RESDNG_DIV).
 """
 
-from dataclasses import dataclass, field
-from datetime import date
+from dataclasses import dataclass
 
 from app.config import DatabaseConfig
 from app.db import execute, execute_many, fetch_all, fetch_one
@@ -30,14 +33,25 @@ CREATE TABLE IF NOT EXISTS tb_extms (
     EMPL_ID VARCHAR(20) NOT NULL,
     PRTCPT_YN CHAR(1) NOT NULL DEFAULT 'N',
     ROLE_DIV VARCHAR(4) NULL,
-    RESDNG_YN CHAR(1) NOT NULL DEFAULT 'N',
-    NON_RESDNG_YN CHAR(1) NOT NULL DEFAULT 'N',
+    RESDNG_DIV VARCHAR(10) NULL,
     RMRK VARCHAR(500) NULL,
     RGST_DTTM DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     RGST_EMPL_ID VARCHAR(20) NOT NULL,
     CHNG_DTTM DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CHNG_EMPL_ID VARCHAR(20) NOT NULL,
     PRIMARY KEY (PRJ_ID, EMPL_ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+"""
+
+CREATE_MONTH_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS tb_extms_month (
+    PRJ_ID VARCHAR(20) NOT NULL,
+    EMPL_ID VARCHAR(20) NOT NULL,
+    YYYYMM CHAR(6) NOT NULL,
+    INPUT_RATE TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    CHNG_DTTM DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CHNG_EMPL_ID VARCHAR(20) NOT NULL,
+    PRIMARY KEY (PRJ_ID, EMPL_ID, YYYYMM)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 
@@ -57,9 +71,42 @@ ROLE_MACTG = "P2"
 GRADE_MACTG = "A4"
 
 
+def _migrate_resdng_columns(db_cfg: DatabaseConfig) -> None:
+    """예전 스키마(RESDNG_YN/NON_RESDNG_YN 체크박스 2개)로 이미 만들어져 있던 운영
+    tb_extms 테이블을 새 스키마(RESDNG_DIV 단일 선택)로 1회 마이그레이션한다.
+    RESDNG_YN 컬럼이 더 이상 없으면(신규 설치 또는 마이그레이션 완료) 아무 것도 하지
+    않는다."""
+    row = fetch_one(
+        db_cfg,
+        """
+        SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tb_extms' AND COLUMN_NAME = 'RESDNG_YN'
+        """,
+    )
+    if not row or not row["cnt"]:
+        return
+
+    execute(db_cfg, "ALTER TABLE tb_extms ADD COLUMN RESDNG_DIV VARCHAR(10) NULL AFTER NON_RESDNG_YN")
+    execute(
+        db_cfg,
+        """
+        UPDATE tb_extms
+        SET RESDNG_DIV = CASE
+            WHEN RESDNG_YN = 'Y' THEN '상주'
+            WHEN NON_RESDNG_YN = 'Y' THEN '비상주'
+            ELSE NULL
+        END
+        """,
+    )
+    execute(db_cfg, "ALTER TABLE tb_extms DROP COLUMN RESDNG_YN")
+    execute(db_cfg, "ALTER TABLE tb_extms DROP COLUMN NON_RESDNG_YN")
+
+
 def ensure_table_exists(db_cfg: DatabaseConfig) -> None:
     execute(db_cfg, CREATE_TABLE_SQL)
+    execute(db_cfg, CREATE_MONTH_TABLE_SQL)
     execute(db_cfg, CREATE_EMPL_TABLE_SQL)
+    _migrate_resdng_columns(db_cfg)
 
 
 @dataclass(frozen=True)
@@ -73,30 +120,28 @@ class ProjectMeta:
 
 
 @dataclass(frozen=True)
-class ProjectCell:
-    participate: bool = False
-    role_div: str | None = None
-    role_name: str = ""
-    resident: bool = False
-    non_resident: bool = False
-    remark: str = ""
-
-
-@dataclass(frozen=True)
-class EmployeeRow:
-    seq: int
+class EmployeeBasic:
     empl_id: str
     name: str
     join_date: str
     dept: str
     position: str
-    grade_external_div: str | None
-    grade_external: str
-    grade_sw_div: str | None
-    grade_sw: str
-    participates: bool
-    is_pm_or_pl: bool
-    cells: dict[str, ProjectCell]
+
+
+@dataclass(frozen=True)
+class ParticipationRow:
+    prj_id: str
+    empl_id: str
+    prj_name: str
+    client_name: str
+    start_date: str
+    end_date: str
+    empl_name: str
+    role_div: str | None
+    role_name: str
+    resdng_div: str | None
+    remark: str
+    monthly_rates: dict[str, int]  # YYYYMM -> 0~100(%)
 
 
 def _fmt_date(value) -> str:
@@ -133,10 +178,10 @@ def get_tracked_projects(db_cfg: DatabaseConfig) -> list[ProjectMeta]:
             pi.PRJ_STRT_DT,
             pi.PRJ_END_DT,
             DATEDIFF(pi.PRJ_END_DT, pi.PRJ_STRT_DT) + 1 AS total_days
-        FROM (SELECT DISTINCT PRJ_ID FROM tb_extms) t
+        FROM (SELECT DISTINCT PRJ_ID FROM tb_extms WHERE PRTCPT_YN = 'Y') t
         JOIN tb_prj_info pi ON pi.PRJ_ID = t.PRJ_ID
         LEFT JOIN tb_account acc ON acc.ACCNT_NO = pi.ACCNT_NO
-        ORDER BY pi.PRJ_ID
+        ORDER BY pi.PRJ_STRT_DT, pi.PRJ_ID
         """,
     )
     return [
@@ -153,7 +198,7 @@ def get_tracked_projects(db_cfg: DatabaseConfig) -> list[ProjectMeta]:
 
 
 def search_projects(db_cfg: DatabaseConfig, keyword: str) -> list[tuple[str, str, str]]:
-    """'프로젝트 추가' 대화상자용 검색. (PRJ_ID, PRJ_NM, 발주기관명) 목록을 반환한다."""
+    """'참여자 추가' 대화상자용 검색. (PRJ_ID, PRJ_NM, 발주기관명) 목록을 반환한다."""
     like = f"%{keyword}%"
     rows = fetch_all(
         db_cfg,
@@ -170,41 +215,29 @@ def search_projects(db_cfg: DatabaseConfig, keyword: str) -> list[tuple[str, str
     return [(row["PRJ_ID"], row["PRJ_NM"] or "", row["ACCNT_NM"] or "") for row in rows]
 
 
-def add_project(db_cfg: DatabaseConfig, prj_id: str, current_empl_id: str) -> None:
-    """선택한 프로젝트를 전 재직 직원에 대해 기본값(참여 N)으로 일괄 추가한다."""
-    employees = fetch_all(db_cfg, "SELECT EMPL_ID FROM tb_employee WHERE LEAV_DT IS NULL")
-    if not employees:
-        return
-    params = [(prj_id, row["EMPL_ID"], current_empl_id, current_empl_id) for row in employees]
-    execute_many(
+def search_employees(db_cfg: DatabaseConfig, keyword: str) -> list[tuple[str, str, str]]:
+    """'참여자 추가' 대화상자용 검색. (EMPL_ID, 성명, 부서명) 목록을 반환한다."""
+    like = f"%{keyword}%"
+    rows = fetch_all(
         db_cfg,
         """
-        INSERT IGNORE INTO tb_extms (PRJ_ID, EMPL_ID, RGST_EMPL_ID, CHNG_EMPL_ID)
-        VALUES (%s, %s, %s, %s)
+        SELECT e.EMPL_ID, e.EMPL_NM, org.ORG_NM
+        FROM tb_employee e
+        LEFT JOIN tb_organization org ON org.ORG_ID = e.ORG_ID
+        WHERE e.LEAV_DT IS NULL AND (e.EMPL_NM LIKE %s OR e.EMPL_ID LIKE %s)
+        ORDER BY e.JOIN_DT, e.EMPL_ID
+        LIMIT 50
         """,
-        params,
+        (like, like),
     )
+    return [(row["EMPL_ID"], row["EMPL_NM"] or "", row["ORG_NM"] or "") for row in rows]
 
 
-def remove_project(db_cfg: DatabaseConfig, prj_id: str) -> None:
-    """투입인력관리에서 프로젝트를 제거한다. 해당 프로젝트의 tb_extms 행을 전부 지운다
-    (프로젝트 자체나 tb_prj_info 등 다른 데이터에는 영향 없음 - 기간 종료 등으로 이
-    화면에서 더 이상 추적할 필요가 없어진 프로젝트를 정리하는 용도)."""
-    execute(db_cfg, "DELETE FROM tb_extms WHERE PRJ_ID = %s", (prj_id,))
-
-
-def get_employee_matrix(
-    db_cfg: DatabaseConfig, project_ids: list[str]
-) -> list[EmployeeRow]:
-    employees = fetch_all(
+def get_active_employees(db_cfg: DatabaseConfig) -> list[EmployeeBasic]:
+    rows = fetch_all(
         db_cfg,
         """
-        SELECT
-            e.EMPL_ID,
-            e.EMPL_NM,
-            e.JOIN_DT,
-            org.ORG_NM,
-            pos.SBCTG_NM AS position_nm
+        SELECT e.EMPL_ID, e.EMPL_NM, e.JOIN_DT, org.ORG_NM, pos.SBCTG_NM AS position_nm
         FROM tb_employee e
         LEFT JOIN tb_organization org ON org.ORG_ID = e.ORG_ID
         LEFT JOIN tb_sub_category pos ON pos.SBCTG_CD = e.RNK AND pos.MACTG_CD = %s
@@ -213,69 +246,21 @@ def get_employee_matrix(
         """,
         (POSITION_MACTG,),
     )
-
-    grade_names = dict(get_grade_options(db_cfg))
-    grades_by_empl: dict[str, tuple[str | None, str | None]] = {}
-    grade_rows = fetch_all(
-        db_cfg, "SELECT EMPL_ID, GRADE_EXTERNAL_DIV, GRADE_SW_DIV FROM tb_extms_empl"
-    )
-    for row in grade_rows:
-        grades_by_empl[row["EMPL_ID"]] = (row["GRADE_EXTERNAL_DIV"], row["GRADE_SW_DIV"])
-
-    role_names = dict(get_role_options(db_cfg))
-
-    cells_by_empl: dict[str, dict[str, ProjectCell]] = {}
-    if project_ids:
-        placeholders = ",".join(["%s"] * len(project_ids))
-        ext_rows = fetch_all(
-            db_cfg,
-            f"""
-            SELECT PRJ_ID, EMPL_ID, PRTCPT_YN, ROLE_DIV, RESDNG_YN, NON_RESDNG_YN, RMRK
-            FROM tb_extms
-            WHERE PRJ_ID IN ({placeholders})
-            """,
-            tuple(project_ids),
+    return [
+        EmployeeBasic(
+            empl_id=row["EMPL_ID"],
+            name=row["EMPL_NM"] or "",
+            join_date=_fmt_date(row["JOIN_DT"]),
+            dept=row["ORG_NM"] or "",
+            position=row["position_nm"] or "",
         )
-        for row in ext_rows:
-            cell = ProjectCell(
-                participate=row["PRTCPT_YN"] == "Y",
-                role_div=row["ROLE_DIV"],
-                role_name=role_names.get(row["ROLE_DIV"], "") if row["ROLE_DIV"] else "",
-                resident=row["RESDNG_YN"] == "Y",
-                non_resident=row["NON_RESDNG_YN"] == "Y",
-                remark=row["RMRK"] or "",
-            )
-            cells_by_empl.setdefault(row["EMPL_ID"], {})[row["PRJ_ID"]] = cell
+        for row in rows
+    ]
 
-    rows: list[EmployeeRow] = []
-    for seq, employee in enumerate(employees, start=1):
-        empl_id = employee["EMPL_ID"]
-        grade_external_div, grade_sw_div = grades_by_empl.get(empl_id, (None, None))
 
-        cells = cells_by_empl.get(empl_id, {})
-        participates = any(cell.participate for cell in cells.values())
-        is_pm_or_pl = any(
-            ("PM" in cell.role_name or "PL" in cell.role_name) for cell in cells.values()
-        )
-
-        rows.append(
-            EmployeeRow(
-                seq=seq,
-                empl_id=empl_id,
-                name=employee["EMPL_NM"] or "",
-                join_date=_fmt_date(employee["JOIN_DT"]),
-                dept=employee["ORG_NM"] or "",
-                position=employee["position_nm"] or "",
-                grade_external_div=grade_external_div,
-                grade_external=grade_names.get(grade_external_div, "") if grade_external_div else "",
-                grade_sw_div=grade_sw_div,
-                grade_sw=grade_names.get(grade_sw_div, "") if grade_sw_div else "",
-                participates=participates,
-                is_pm_or_pl=is_pm_or_pl,
-                cells=cells,
-            )
-        )
-    return rows
+def get_employee_grades(db_cfg: DatabaseConfig) -> dict[str, tuple[str | None, str | None]]:
+    rows = fetch_all(db_cfg, "SELECT EMPL_ID, GRADE_EXTERNAL_DIV, GRADE_SW_DIV FROM tb_extms_empl")
+    return {row["EMPL_ID"]: (row["GRADE_EXTERNAL_DIV"], row["GRADE_SW_DIV"]) for row in rows}
 
 
 def save_employee_grades(
@@ -304,42 +289,141 @@ def save_employee_grades(
     )
 
 
-def save_matrix(
+def get_participation_rows(
+    db_cfg: DatabaseConfig, start_year: int, start_month: int, end_year: int, end_month: int
+) -> list[ParticipationRow]:
+    """프로젝트 시작일 순으로 정렬된 참여 목록(한 행 = 직원 1명의 프로젝트 1건 참여).
+    같은 프로젝트에 속한 참여자들은 연속으로 묶여서 나온다(첨부 엑셀 시트01과 동일한
+    정렬)."""
+    role_names = dict(get_role_options(db_cfg))
+
+    rows = fetch_all(
+        db_cfg,
+        """
+        SELECT
+            t.PRJ_ID, t.EMPL_ID, t.ROLE_DIV, t.RESDNG_DIV, t.RMRK,
+            pi.PRJ_NM, pi.PRJ_STRT_DT, pi.PRJ_END_DT,
+            acc.ACCNT_NM,
+            e.EMPL_NM
+        FROM tb_extms t
+        JOIN tb_prj_info pi ON pi.PRJ_ID = t.PRJ_ID
+        LEFT JOIN tb_account acc ON acc.ACCNT_NO = pi.ACCNT_NO
+        JOIN tb_employee e ON e.EMPL_ID = t.EMPL_ID
+        WHERE t.PRTCPT_YN = 'Y'
+        ORDER BY pi.PRJ_STRT_DT, pi.PRJ_ID, e.JOIN_DT, e.EMPL_ID
+        """,
+    )
+
+    month_rows = fetch_all(
+        db_cfg,
+        """
+        SELECT PRJ_ID, EMPL_ID, YYYYMM, INPUT_RATE
+        FROM tb_extms_month
+        WHERE YYYYMM BETWEEN %s AND %s
+        """,
+        (f"{start_year:04d}{start_month:02d}", f"{end_year:04d}{end_month:02d}"),
+    )
+    rates_by_key: dict[tuple[str, str], dict[str, int]] = {}
+    for row in month_rows:
+        rates_by_key.setdefault((row["PRJ_ID"], row["EMPL_ID"]), {})[row["YYYYMM"]] = int(
+            row["INPUT_RATE"]
+        )
+
+    result: list[ParticipationRow] = []
+    for row in rows:
+        result.append(
+            ParticipationRow(
+                prj_id=row["PRJ_ID"],
+                empl_id=row["EMPL_ID"],
+                prj_name=row["PRJ_NM"] or "",
+                client_name=row["ACCNT_NM"] or "",
+                start_date=_fmt_date(row["PRJ_STRT_DT"]),
+                end_date=_fmt_date(row["PRJ_END_DT"]),
+                empl_name=row["EMPL_NM"] or "",
+                role_div=row["ROLE_DIV"],
+                role_name=role_names.get(row["ROLE_DIV"], "") if row["ROLE_DIV"] else "",
+                resdng_div=row["RESDNG_DIV"],
+                remark=row["RMRK"] or "",
+                monthly_rates=rates_by_key.get((row["PRJ_ID"], row["EMPL_ID"]), {}),
+            )
+        )
+    return result
+
+
+def participation_exists(db_cfg: DatabaseConfig, prj_id: str, empl_id: str) -> bool:
+    row = fetch_one(
+        db_cfg,
+        "SELECT 1 AS x FROM tb_extms WHERE PRJ_ID = %s AND EMPL_ID = %s AND PRTCPT_YN = 'Y'",
+        (prj_id, empl_id),
+    )
+    return row is not None
+
+
+def add_participant(db_cfg: DatabaseConfig, prj_id: str, empl_id: str, current_empl_id: str) -> None:
+    """(PRJ_ID, EMPL_ID) 행이 이미 있으면(과거 매트릭스 보기가 기본값으로 미리 깔아둔
+    미참여 행 등) 참여로 승격시키고, 없으면 새로 만든다."""
+    execute(
+        db_cfg,
+        """
+        INSERT INTO tb_extms (PRJ_ID, EMPL_ID, PRTCPT_YN, RGST_EMPL_ID, CHNG_EMPL_ID)
+        VALUES (%s, %s, 'Y', %s, %s)
+        ON DUPLICATE KEY UPDATE
+            PRTCPT_YN = 'Y',
+            CHNG_EMPL_ID = VALUES(CHNG_EMPL_ID)
+        """,
+        (prj_id, empl_id, current_empl_id, current_empl_id),
+    )
+
+
+def remove_participant(db_cfg: DatabaseConfig, prj_id: str, empl_id: str) -> None:
+    """참여 정보와 그 직원의 해당 프로젝트 월별 투입률을 함께 삭제한다."""
+    execute(db_cfg, "DELETE FROM tb_extms_month WHERE PRJ_ID = %s AND EMPL_ID = %s", (prj_id, empl_id))
+    execute(db_cfg, "DELETE FROM tb_extms WHERE PRJ_ID = %s AND EMPL_ID = %s", (prj_id, empl_id))
+
+
+def save_participation_rows(
     db_cfg: DatabaseConfig,
-    cell_updates: list[tuple[str, str, ProjectCell]],
+    updates: list[tuple[str, str, str | None, str | None, str, dict[str, int]]],
     current_empl_id: str,
 ) -> None:
-    """(PRJ_ID, EMPL_ID, ProjectCell) 목록을 upsert한다."""
-    if not cell_updates:
+    """updates: (PRJ_ID, EMPL_ID, 역할코드, 상주구분, 비고, {YYYYMM: 0~100}) 목록을 upsert한다."""
+    if not updates:
         return
-    params = [
-        (
-            prj_id,
-            empl_id,
-            "Y" if cell.participate else "N",
-            cell.role_div,
-            "Y" if cell.resident else "N",
-            "Y" if cell.non_resident else "N",
-            cell.remark or None,
-            current_empl_id,
-            current_empl_id,
-        )
-        for prj_id, empl_id, cell in cell_updates
+
+    extms_params = [
+        (prj_id, empl_id, role_div, resdng_div, remark or None, current_empl_id, current_empl_id)
+        for prj_id, empl_id, role_div, resdng_div, remark, _monthly in updates
     ]
     execute_many(
         db_cfg,
         """
         INSERT INTO tb_extms
-            (PRJ_ID, EMPL_ID, PRTCPT_YN, ROLE_DIV, RESDNG_YN, NON_RESDNG_YN, RMRK,
-             RGST_EMPL_ID, CHNG_EMPL_ID)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (PRJ_ID, EMPL_ID, PRTCPT_YN, ROLE_DIV, RESDNG_DIV, RMRK, RGST_EMPL_ID, CHNG_EMPL_ID)
+        VALUES (%s, %s, 'Y', %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
-            PRTCPT_YN = VALUES(PRTCPT_YN),
+            PRTCPT_YN = 'Y',
             ROLE_DIV = VALUES(ROLE_DIV),
-            RESDNG_YN = VALUES(RESDNG_YN),
-            NON_RESDNG_YN = VALUES(NON_RESDNG_YN),
+            RESDNG_DIV = VALUES(RESDNG_DIV),
             RMRK = VALUES(RMRK),
             CHNG_EMPL_ID = VALUES(CHNG_EMPL_ID)
         """,
-        params,
+        extms_params,
     )
+
+    month_params = [
+        (prj_id, empl_id, yyyymm, percent, current_empl_id)
+        for prj_id, empl_id, _role_div, _resdng_div, _remark, monthly in updates
+        for yyyymm, percent in monthly.items()
+    ]
+    if month_params:
+        execute_many(
+            db_cfg,
+            """
+            INSERT INTO tb_extms_month (PRJ_ID, EMPL_ID, YYYYMM, INPUT_RATE, CHNG_EMPL_ID)
+            VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                INPUT_RATE = VALUES(INPUT_RATE),
+                CHNG_EMPL_ID = VALUES(CHNG_EMPL_ID)
+            """,
+            month_params,
+        )
