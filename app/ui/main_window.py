@@ -16,6 +16,7 @@ from app.config import AppConfig
 from app.ui.dashboard_view import DashboardView
 from app.ui.menu_tree import MENU_TREE
 from app.ui.project_cost_dialog import ProjectCostDialog
+from app.ui.project_input_mm_dialog import ProjectInputMmDialog
 from app.ui.project_manpower_dialog import ProjectManpowerDialog
 from app.ui.sales_purchase_dialog import SalesPurchaseDialog
 from app.ui.theme import build_menu_tree_qss, current_theme
@@ -49,7 +50,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self._stack)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([220, 980])
+        splitter.setSizes([260, 940])
 
         central = QWidget()
         central_layout = QVBoxLayout()
@@ -96,8 +97,9 @@ class MainWindow(QMainWindow):
     def _build_menu_tree(self) -> QTreeWidget:
         tree = QTreeWidget()
         tree.setHeaderHidden(True)
-        tree.setFixedWidth(220)
+        tree.setFixedWidth(260)
         tree.setIndentation(12)
+        tree.setWordWrap(True)
 
         for item in MENU_TREE:
             top_item = QTreeWidgetItem([item.label])
@@ -133,6 +135,8 @@ class MainWindow(QMainWindow):
             ProjectCostDialog(self._config, parent=self).exec()
         elif content_key == "project_manpower":
             ProjectManpowerDialog(self._config, self._user, parent=self).exec()
+        elif content_key == "project_input_mm":
+            ProjectInputMmDialog(self._config, self._user, parent=self).exec()
         else:
             self._placeholder_label.setText(f"'{item.text(0)}' 화면은 준비중입니다.")
             self._stack.setCurrentWidget(self._placeholder)

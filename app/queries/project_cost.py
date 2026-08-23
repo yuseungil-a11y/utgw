@@ -102,8 +102,21 @@ def _fmt_period(start, end) -> str:
 
 
 def _build_req_to_prj_map(db_cfg: DatabaseConfig) -> dict[str, str]:
-    rows = fetch_all(db_cfg, "SELECT PRJ_ID, SND_REQ_NO FROM tb_prj_exec_bgt")
-    return {row["SND_REQ_NO"]: row["PRJ_ID"] for row in rows}
+    """PRJ_ID 당 최신 승인 건 하나만 매핑한다.
+
+    실행예산 재승인(EXEC_BGT_CD의 -E-1, -E-2 ...)은 이전 승인 금액에 더해지는
+    증액이 아니라, 실행예산 전체를 다시 작성해서 재승인하는 방식이다(실측 확인:
+    26-PRJ-0001의 두 승인 건은 노무비/매입/제안비용 등 대부분 항목이 완전히
+    동일하고 경비 한 줄만 수정된 값으로 재승인됨). 과거에는 모든 승인 건을
+    합산해서 매출/노무비 등이 그대로 두 배로 잡히는 버그가 있었다.
+    """
+    rows = fetch_all(
+        db_cfg, "SELECT PRJ_ID, SND_REQ_NO, APPD_DTTM FROM tb_prj_exec_bgt ORDER BY APPD_DTTM"
+    )
+    latest_req_by_prj: dict[str, str] = {}
+    for row in rows:
+        latest_req_by_prj[row["PRJ_ID"]] = row["SND_REQ_NO"]
+    return {req_no: prj_id for prj_id, req_no in latest_req_by_prj.items()}
 
 
 def _accumulate(totals: dict[str, int], prj_id: str | None, amount: int) -> None:

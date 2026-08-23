@@ -335,11 +335,11 @@ QTreeWidget {{
     color: {theme.text_primary};
     border: none;
     outline: none;
-    font-size: {BODY_PT}pt;
+    font-size: 12px;
 }}
 QTreeWidget::item {{
-    height: 34px;
-    padding-left: 4px;
+    min-height: 34px;
+    padding: 4px 4px;
     color: {theme.text_primary};
     border-radius: {RADIUS_SM}px;
 }}

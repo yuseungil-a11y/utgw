@@ -22,7 +22,7 @@ MENU_TREE: list[MenuItem] = [
             MenuItem(label="매출/매입 현황", content_key="sales_purchase"),
             MenuItem(label="프로젝트 원가", content_key="project_cost"),
             MenuItem(label="한국도로공사 투입인력관리", content_key="project_manpower"),
-            MenuItem(label="프로젝트 투입 M/M (설계중)"),
+            MenuItem(label="프로젝트 실행원가 비교", content_key="project_input_mm"),
         ],
     ),
     MenuItem(
