@@ -47,6 +47,7 @@ class SalesPurchaseDialog(QDialog):
         self._rows: list[tuple] = []
 
         self.setWindowTitle("매출/매입현황")
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMaximizeButtonHint)
         self.resize(1100, 640)
 
         today = QDate.currentDate()

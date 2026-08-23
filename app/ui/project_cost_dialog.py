@@ -50,6 +50,7 @@ class ProjectCostDialog(QDialog):
         self._rows: list[tuple] = []
 
         self.setWindowTitle("프로젝트 원가")
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMaximizeButtonHint)
         self.resize(1300, 680)
 
         title_label = QLabel("프로젝트 원가")

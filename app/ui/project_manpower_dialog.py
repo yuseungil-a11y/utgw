@@ -322,6 +322,7 @@ class ProjectManpowerDialog(QDialog):
         self._end_year, self._end_month = current_year, 12
 
         self.setWindowTitle("한국도로공사 투입인력관리")
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMaximizeButtonHint)
         self.resize(1500, 720)
 
         title_label = QLabel("한국도로공사 투입인력관리")

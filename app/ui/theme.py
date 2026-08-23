@@ -241,6 +241,38 @@ QCheckBox {{
     color: {theme.text_primary};
     spacing: 8px;
 }}
+QCheckBox::indicator {{
+    width: 16px;
+    height: 16px;
+    border-radius: {RADIUS_XS}px;
+    border: 1px solid {theme.border};
+    background-color: {theme.surface};
+}}
+QCheckBox::indicator:hover {{
+    border: 1px solid {theme.accent};
+}}
+QCheckBox::indicator:checked {{
+    border: 1px solid {theme.accent};
+    background-color: {theme.accent};
+}}
+QRadioButton {{
+    color: {theme.text_primary};
+    spacing: 8px;
+}}
+QRadioButton::indicator {{
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    border: 1px solid {theme.border};
+    background-color: {theme.surface};
+}}
+QRadioButton::indicator:hover {{
+    border: 1px solid {theme.accent};
+}}
+QRadioButton::indicator:checked {{
+    border: 5px solid {theme.accent};
+    background-color: {theme.surface};
+}}
 QDialog {{
     background-color: {theme.bg};
 }}
