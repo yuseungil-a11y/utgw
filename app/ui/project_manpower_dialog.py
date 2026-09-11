@@ -47,7 +47,7 @@ from app.queries.project_manpower import (
     search_employees,
     search_projects,
 )
-from app.ui.theme import current_theme
+from app.ui.theme import POPUP_GRID_FONT_PX, POPUP_HEIGHT, POPUP_WIDTH, current_theme
 
 _NO_ROLE_LABEL = "(선택 안 함)"
 _NO_GRADE_LABEL = "(선택 안 함)"
@@ -138,6 +138,7 @@ class _AddParticipantDialog(QDialog):
         self._project_search.textChanged.connect(self._on_project_search_changed)
         self._project_list = QListWidget()
         self._project_list.setMaximumHeight(200)
+        self._project_list.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
 
         employee_label = QLabel("직원 선택")
         employee_label.setProperty("role", "secondary")
@@ -145,6 +146,7 @@ class _AddParticipantDialog(QDialog):
         self._employee_search.setPlaceholderText("이름으로 검색")
         self._employee_search.textChanged.connect(self._on_employee_search_changed)
         self._employee_list = QListWidget()
+        self._employee_list.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
 
         add_button = QPushButton("추가")
         add_button.clicked.connect(self._confirm)
@@ -242,6 +244,7 @@ class _EmployeeGradeDialog(QDialog):
         self._table.verticalHeader().setVisible(False)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setAlternatingRowColors(True)
+        self._table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         header.setStretchLastSection(True)
@@ -323,7 +326,7 @@ class ProjectManpowerDialog(QDialog):
 
         self.setWindowTitle("한국도로공사 투입인력관리")
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMaximizeButtonHint)
-        self.resize(1500, 720)
+        self.resize(POPUP_WIDTH, POPUP_HEIGHT)
 
         title_label = QLabel("한국도로공사 투입인력관리")
         title_label.setProperty("role", "title")
@@ -418,6 +421,7 @@ class ProjectManpowerDialog(QDialog):
         self._list_table.setMinimumHeight(560)
         self._list_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._list_table.customContextMenuRequested.connect(self._on_row_context_menu)
+        self._list_table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
 
         # WBS(월별) 보기 — 프로젝트별 헤더 행 + 참여 직원의 계약기간을 월별 막대로 표시
         self._wbs_table = QTableWidget()
@@ -427,6 +431,7 @@ class ProjectManpowerDialog(QDialog):
         self._wbs_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self._wbs_table.setMinimumHeight(560)
         self._wbs_table.setAlternatingRowColors(True)
+        self._wbs_table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
 
         # 사람기준 보기 — 직원별로 참여 중인 프로젝트마다 한 행, 계약기간을 월별
         # 막대로 표시한다("프로젝트 현황(사람기준).xlsx" 레이아웃 참조).
@@ -437,6 +442,7 @@ class ProjectManpowerDialog(QDialog):
         self._person_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self._person_table.setMinimumHeight(560)
         self._person_table.setAlternatingRowColors(True)
+        self._person_table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
 
         self._view_stack = QStackedWidget()
         self._view_stack.addWidget(self._list_table)

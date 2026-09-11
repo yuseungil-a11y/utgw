@@ -20,7 +20,7 @@ from openpyxl import Workbook
 
 from app.config import AppConfig
 from app.queries.sales_purchase import COLUMNS, get_sales_purchase_rows
-from app.ui.theme import current_theme
+from app.ui.theme import POPUP_GRID_FONT_PX, POPUP_HEIGHT, POPUP_WIDTH, current_theme
 
 _DIVISION_COL = COLUMNS.index("구분")
 _AMOUNT_COL = COLUMNS.index("금액")
@@ -48,7 +48,7 @@ class SalesPurchaseDialog(QDialog):
 
         self.setWindowTitle("매출/매입현황")
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMaximizeButtonHint)
-        self.resize(1100, 640)
+        self.resize(POPUP_WIDTH, POPUP_HEIGHT)
 
         today = QDate.currentDate()
         self._date_from_edit = QDateEdit(QDate(today.year(), 1, 1))
@@ -91,6 +91,7 @@ class SalesPurchaseDialog(QDialog):
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setWordWrap(True)
         self._table.setAlternatingRowColors(True)
+        self._table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
 
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)

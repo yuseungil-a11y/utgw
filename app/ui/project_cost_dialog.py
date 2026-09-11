@@ -1,5 +1,7 @@
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QFileDialog,
@@ -16,9 +18,22 @@ from openpyxl import Workbook
 
 from app.config import AppConfig
 from app.queries.project_cost import COLUMNS, get_project_cost_rows
+from app.queries.project_input_mm import get_bulk_actuals
+from app.ui.theme import POPUP_GRID_FONT_PX, POPUP_HEIGHT, POPUP_WIDTH, current_theme
 
 _ORG_COL = COLUMNS.index("수행조직")
+_NAME_COL = COLUMNS.index("프로젝트명")
+_LABOR_COL = COLUMNS.index("노무비")
+_EXPENSE_COL = COLUMNS.index("경비")
+_OUTSOURCING_COL = COLUMNS.index("외주비")
 _ALL_ORGS_LABEL = "전체"
+_ACTUAL_ROW_LABEL = "└ 실적 집행"
+# {계획 컬럼 인덱스: 실적 dict(get_bulk_actuals 반환값)의 키} — 실적 데이터가 있는 항목만.
+_ACTUAL_COMPARABLE_COLS = {
+    _LABOR_COL: "labor",
+    _EXPENSE_COL: "expense",
+    _OUTSOURCING_COL: "outsourcing",
+}
 
 _INITIAL_COLUMN_WIDTHS = {
     "프로젝트코드": 110,
@@ -48,10 +63,11 @@ class ProjectCostDialog(QDialog):
         self._config = app_config
         self._all_rows: list[tuple] = []
         self._rows: list[tuple] = []
+        self._actuals_by_prj: dict[str, dict[str, float | int]] = {}
 
         self.setWindowTitle("프로젝트 원가")
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMaximizeButtonHint)
-        self.resize(1300, 680)
+        self.resize(POPUP_WIDTH, POPUP_HEIGHT)
 
         title_label = QLabel("프로젝트 원가")
         title_label.setProperty("role", "title")
@@ -62,6 +78,9 @@ class ProjectCostDialog(QDialog):
         self._org_combo = QComboBox()
         self._org_combo.addItem(_ALL_ORGS_LABEL)
         self._org_combo.currentTextChanged.connect(self._on_org_filter_changed)
+
+        self._compare_checkbox = QCheckBox("실적 집행 비교")
+        self._compare_checkbox.toggled.connect(self._on_compare_toggled)
 
         self._status_label = QLabel("")
         self._status_label.setProperty("role", "secondary")
@@ -78,6 +97,8 @@ class ProjectCostDialog(QDialog):
         header_row.addSpacing(16)
         header_row.addWidget(org_label)
         header_row.addWidget(self._org_combo)
+        header_row.addSpacing(16)
+        header_row.addWidget(self._compare_checkbox)
         header_row.addStretch()
         header_row.addWidget(refresh_button)
         header_row.addWidget(export_button)
@@ -89,6 +110,7 @@ class ProjectCostDialog(QDialog):
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setWordWrap(True)
         self._table.setAlternatingRowColors(True)
+        self._table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
 
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
@@ -116,8 +138,20 @@ class ProjectCostDialog(QDialog):
             return
 
         self._all_rows = [row.as_tuple() for row in rows]
+
+        try:
+            self._actuals_by_prj = get_bulk_actuals(self._config.database)
+        except Exception as exc:  # noqa: BLE001 - 실적 비교는 부가 기능이라 계획 표는 그대로 보여준다
+            self._actuals_by_prj = {}
+            if self._compare_checkbox.isChecked():
+                QMessageBox.warning(self, "실적 집행 비교", f"실적 데이터 조회에 실패했습니다.\n{exc}")
+
         self._refresh_org_options()
         self._apply_org_filter()
+
+    def _on_compare_toggled(self, _checked: bool) -> None:
+        self._populate_table()
+        self._update_status_label()
 
     def _refresh_org_options(self) -> None:
         orgs = sorted({row[_ORG_COL] for row in self._all_rows if row[_ORG_COL]})
@@ -142,16 +176,60 @@ class ProjectCostDialog(QDialog):
             self._rows = list(self._all_rows)
 
         self._populate_table()
-        self._status_label.setText(f"총 {len(self._rows)}개 프로젝트")
+        self._update_status_label()
+
+    def _update_status_label(self) -> None:
+        status = f"총 {len(self._rows)}개 프로젝트"
+        if self._compare_checkbox.isChecked():
+            compared = sum(1 for row in self._rows if row[0] in self._actuals_by_prj)
+            status += f" · 실적 집행 데이터 있음 {compared}건"
+        self._status_label.setText(status)
 
     def _populate_table(self) -> None:
-        self._table.setRowCount(len(self._rows))
-        for row_idx, row in enumerate(self._rows):
+        """"실적 집행 비교" 체크박스가 켜져 있으면, 프로젝트(계획) 행 바로 아래에
+        실적(노무비·경비·외주비) 비교 행을 추가한다. 실적 데이터가 아예 없는
+        프로젝트는 비교 행을 만들지 않는다(대부분의 프로젝트가 아직 업무일지/경비
+        실적이 없어서, 전부 0으로 채운 행을 보여주면 오히려 표만 산만해진다)."""
+        show_compare = self._compare_checkbox.isChecked()
+        theme = current_theme()
+
+        display_rows: list[tuple[str, tuple]] = []
+        for row in self._rows:
+            display_rows.append(("plan", row))
+            if not show_compare:
+                continue
+            actuals = self._actuals_by_prj.get(row[0])
+            if actuals is None:
+                continue
+            actual_row = [""] * len(COLUMNS)
+            actual_row[_NAME_COL] = _ACTUAL_ROW_LABEL
+            for col_idx, key in _ACTUAL_COMPARABLE_COLS.items():
+                actual_row[col_idx] = int(actuals.get(key, 0))
+            display_rows.append(("actual", tuple(actual_row)))
+
+        self._table.setRowCount(len(display_rows))
+        for row_idx, (kind, row) in enumerate(display_rows):
+            plan_row = display_rows[row_idx - 1][1] if kind == "actual" else None
             for col_idx, value in enumerate(row):
                 text = f"{value:,}" if isinstance(value, int) else str(value)
                 item = QTableWidgetItem(text)
                 if isinstance(value, int):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+                if kind == "actual":
+                    if col_idx == _NAME_COL:
+                        item.setForeground(QColor(theme.text_secondary))
+                    elif col_idx in _ACTUAL_COMPARABLE_COLS:
+                        plan_value = plan_row[col_idx] if plan_row else 0
+                        if isinstance(value, int) and value > plan_value:
+                            font = QFont()
+                            font.setBold(True)
+                            item.setFont(font)
+                            item.setForeground(QColor(theme.destructive))
+                            item.setBackground(QColor(theme.destructive).lighter(175))
+                        else:
+                            item.setForeground(QColor(theme.text_secondary))
+
                 self._table.setItem(row_idx, col_idx, item)
         self._table.resizeRowsToContents()
 

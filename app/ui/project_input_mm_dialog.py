@@ -35,12 +35,13 @@ from app.queries.project_input_mm import (
     get_execution_comparison,
     get_project_options,
 )
-from app.ui.theme import current_theme
+from app.ui.theme import POPUP_GRID_FONT_PX, POPUP_HEIGHT, POPUP_WIDTH, current_theme
 
 _ROWS = [
     ("계약금액(수주금액)", "contract_amount", "contract_amount"),
     ("제안비용", "proposal_cost", "proposal_cost"),
     ("노무비", "plan_labor_cost", "actual_labor_cost"),
+    ("경비", "plan_expense", "actual_expense"),
     ("외주비", "plan_outsourcing_cost", "actual_outsourcing_cost"),
 ]
 
@@ -60,7 +61,7 @@ class ProjectInputMmDialog(QDialog):
 
         self.setWindowTitle("프로젝트 실행원가 비교")
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMaximizeButtonHint)
-        self.resize(1200, 920)
+        self.resize(POPUP_WIDTH, POPUP_HEIGHT)
 
         title_label = QLabel("프로젝트 실행원가 비교")
         title_label.setProperty("role", "title")
@@ -72,7 +73,7 @@ class ProjectInputMmDialog(QDialog):
         self._project_search.textChanged.connect(self._apply_project_filter)
         self._project_list = QListWidget()
         self._project_list.setWordWrap(True)
-        self._project_list.setStyleSheet("font-size: 12px;")
+        self._project_list.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
         self._project_list.currentItemChanged.connect(self._on_project_selected)
 
         left_layout = QVBoxLayout()
@@ -106,7 +107,7 @@ class ProjectInputMmDialog(QDialog):
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setAlternatingRowColors(True)
         self._table.verticalHeader().setVisible(False)
-        self._table.setStyleSheet("font-size: 12px;")
+        self._table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         header.setStretchLastSection(True)
@@ -118,6 +119,8 @@ class ProjectInputMmDialog(QDialog):
             "※ 노무비 실적은 업무일지(투입시간)를 직원 직급·근무연도별로 묶어 "
             f"tb_labor_cost 단가표(적용년도+직급코드 → 인월단가, 1인월={STANDARD_MONTH_HOURS}시간)를 "
             "적용해 계산합니다.\n"
+            "※ 경비 실적은 전자결재 경비 지출결의(tb_request_expenses)의 해당 프로젝트 금액 합계이며, "
+            "반려된 건만 제외합니다(승인·진행중 포함). 계획 경비는 실행예산 경비입니다.\n"
             "※ 외주비 실적은 매출/매입 원장에 등록된 매입 금액 합계이며, 확정 여부와는 무관합니다.\n"
             "※ 계약금액·제안비용은 계획/실적 구분 없이 동일한 값입니다."
         )

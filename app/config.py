@@ -3,6 +3,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.updater import DEFAULT_REPO
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -30,9 +32,16 @@ class DatabaseConfig:
 
 
 @dataclass(frozen=True)
+class UpdateConfig:
+    repo: str  # "owner/repo" 형태의 GitHub 저장소
+    token: str  # 비공개 저장소용 읽기전용 PAT. 비어있으면 익명 요청(공개 저장소만 가능).
+
+
+@dataclass(frozen=True)
 class AppConfig:
     database: DatabaseConfig
     sales_targets: dict[int, int]
+    update: UpdateConfig
 
 
 def load_config(path: Path = CONFIG_PATH) -> AppConfig:
@@ -59,4 +68,13 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
         for year, amount in parser.items("sales_target"):
             sales_targets[int(year)] = int(amount)
 
-    return AppConfig(database=database, sales_targets=sales_targets)
+    # [update] 섹션은 선택사항이다 — 없으면 기본 저장소를 익명(토큰 없이) 상태로 둔다.
+    # 비공개 저장소는 token 없이는 버전 확인이 실패하며, 그 경우 오류 메시지를 그대로
+    # 사용자에게 보여준다(app/updater.py 참고).
+    update_section = parser["update"] if parser.has_section("update") else {}
+    update = UpdateConfig(
+        repo=update_section.get("repo", DEFAULT_REPO),
+        token=update_section.get("token", ""),
+    )
+
+    return AppConfig(database=database, sales_targets=sales_targets, update=update)

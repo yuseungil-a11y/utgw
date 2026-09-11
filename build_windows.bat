@@ -1,52 +1,66 @@
 @echo off
-REM Windows ì‹¤í–‰íŒŒì¼ ë¹Œë“œ ìŠ¤í¬ë¦½íŠ¸. ë°˜ë“œì‹œ Windows PCì—ì„œ ì‹¤í–‰í•´ì•¼ í•©ë‹ˆë‹¤
-REM (PyInstallerëŠ” í¬ë¡œìŠ¤ ì»´íŒŒì¼ì„ ì§€ì›í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤).
+REM Windows ½ÇÇàÆÄÀÏ ºôµå ½ºÅ©¸³Æ®. ¹Ýµå½Ã Windows PC¿¡¼­ ½ÇÇàÇØ¾ß ÇÕ´Ï´Ù
+REM (PyInstaller´Â Å©·Î½º ÄÄÆÄÀÏÀ» Áö¿øÇÏÁö ¾Ê½À´Ï´Ù).
 setlocal
 
-set APP_NAME=UTGWê²½ì˜ê´€ë¦¬
+set APP_NAME=UTGW°æ¿µ°ü¸®
 set PROJECT_DIR=%~dp0
 
 cd /d "%PROJECT_DIR%"
 
-REM Windowsì—ì„œ "python" ëª…ë ¹ì´ ì‹¤ì œ íŒŒì´ì¬ ëŒ€ì‹  ìŠ¤í† ì–´ë¡œ ì—°ê²°ë˜ëŠ” ë¹ˆ ì•Œë¦¼ìœ¼ë¡œ
-REM ìž¡í˜€ìžˆëŠ” ê²½ìš°ê°€ ë§Žì•„ì„œ(App Execution Alias), ìžˆìœ¼ë©´ "py" ëŸ°ì²˜ë¥¼ ìš°ì„  ì‚¬ìš©í•œë‹¤.
+REM Windows¿¡¼­ "python" ¸í·ÉÀÌ ½ÇÁ¦ ÆÄÀÌ½ã ´ë½Å ½ºÅä¾î·Î ¿¬°áµÇ´Â ºó ¾Ë¸²À¸·Î
+REM ÀâÇôÀÖ´Â °æ¿ì°¡ ¸¹¾Æ¼­(App Execution Alias), ÀÖÀ¸¸é "py" ·±Ã³¸¦ ¿ì¼± »ç¿ëÇÑ´Ù.
 where py >nul 2>nul
 if %errorlevel%==0 (
     set PY_CMD=py
 ) else (
     set PY_CMD=python
 )
-echo ì‚¬ìš©í•  íŒŒì´ì¬ ëª…ë ¹: %PY_CMD%
+echo »ç¿ëÇÒ ÆÄÀÌ½ã ¸í·É: %PY_CMD%
 
-echo 1) ì˜ì¡´ì„± ì„¤ì¹˜...
+echo 1) ÀÇÁ¸¼º ¼³Ä¡...
 %PY_CMD% -m pip install --quiet -r requirements.txt
 %PY_CMD% -m pip install --quiet pyinstaller
 if errorlevel 1 (
-    echo pip ì„¤ì¹˜ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤. %PY_CMD%ì´ PATHì— ìžˆëŠ”ì§€ í™•ì¸í•´ì£¼ì„¸ìš”.
+    echo pip ¼³Ä¡¿¡ ½ÇÆÐÇß½À´Ï´Ù. %PY_CMD%ÀÌ PATH¿¡ ÀÖ´ÂÁö È®ÀÎÇØÁÖ¼¼¿ä.
     pause
     exit /b 1
 )
 
-echo 2) PyInstaller ë¹Œë“œ (--onefile: exe í•˜ë‚˜ë¡œ ë¹Œë“œ, _internal í´ë” ì—†ìŒ)...
-%PY_CMD% -m PyInstaller --onefile --windowed --name "%APP_NAME%" --noconfirm ^
+echo 2) PyInstaller ºôµå (--onedir: exe + Á¾¼Ó DLLÀ» Æú´õ¿¡ ±×´ë·Î µÐ´Ù)...
+REM --onefileÀº ½ÇÇàÇÒ ¶§¸¶´Ù %%TEMP%%¿¡ ÀÚ±â ÀÚ½ÅÀ» ¾ÐÃàÇØÁ¦ÇÏ°í ±× ¾È¿¡¼­
+REM python3xx.dllÀ» ·ÎµåÇÏ´Â ¹æ½ÄÀÌ¶ó, ±× ÃßÃâ °úÁ¤ÀÌ ¹é½Å ½Ç½Ã°£ °Ë»ç¿¡ °É¸®¸é
+REM "Failed to load Python DLL ... LoadLibrary: ÁöÁ¤µÈ ¸ðµâÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù"
+REM ¿À·ù·Î ÀÌ¾îÁø´Ù(Æ¯È÷ ¾÷µ¥ÀÌÆ® Á÷ÈÄ ¸· ³»·Á¹ÞÀº/ÀÌµ¿µÈ exe¿¡¼­ ÀÚÁÖ ¹ß»ý).
+REM --onedir´Â ½ÇÇà ½ÃÁ¡¿¡ ¾ÐÃàÇØÁ¦°¡ ¾ø¾î¼­ ÀÌ ¹®Á¦ ÀÚÃ¼°¡ ¾ø´Ù.
+%PY_CMD% -m PyInstaller --onedir --windowed --name "%APP_NAME%" --noconfirm ^
     --icon "%PROJECT_DIR%app\resources\app_icon.ico" ^
     run_app.py
 if errorlevel 1 (
-    echo ë¹Œë“œì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.
+    echo ºôµå¿¡ ½ÇÆÐÇß½À´Ï´Ù.
     pause
     exit /b 1
 )
 
-echo 3) config.inië¥¼ exeì™€ ê°™ì€ í´ë”(dist\)ì— ë°°ì¹˜...
-REM dist í´ë”ëŠ” ë¹Œë“œí•  ë•Œë§ˆë‹¤ í†µì§¸ë¡œ ìƒˆë¡œ ë§Œë“¤ì–´ì§€ë¯€ë¡œ ë§¤ë²ˆ ë‹¤ì‹œ ë³µì‚¬í•œë‹¤.
+echo 3) config.ini¸¦ exe¿Í °°Àº Æú´õ(dist\%APP_NAME%\)¿¡ ¹èÄ¡...
+REM dist Æú´õ´Â ºôµåÇÒ ¶§¸¶´Ù ÅëÂ°·Î »õ·Î ¸¸µé¾îÁö¹Ç·Î ¸Å¹ø ´Ù½Ã º¹»çÇÑ´Ù.
 if exist "%PROJECT_DIR%config.ini" (
-    copy "%PROJECT_DIR%config.ini" "%PROJECT_DIR%dist\config.ini" >nul
-    echo config.inië¥¼ dist\ ë¡œ ë³µì‚¬í–ˆìŠµë‹ˆë‹¤.
+    copy "%PROJECT_DIR%config.ini" "%PROJECT_DIR%dist\%APP_NAME%\config.ini" >nul
+    echo config.ini¸¦ dist\%APP_NAME%\ ·Î º¹»çÇß½À´Ï´Ù.
 ) else (
-    echo ê²½ê³ : config.iniê°€ ì—†ìŠµë‹ˆë‹¤. config.ini.exampleì„ ë³µì‚¬í•´ì„œ ë§Œë“¤ì–´ì£¼ì„¸ìš”.
+    echo °æ°í: config.ini°¡ ¾ø½À´Ï´Ù. config.ini.exampleÀ» º¹»çÇØ¼­ ¸¸µé¾îÁÖ¼¼¿ä.
+)
+
+echo 4) ¹èÆ÷/¾÷µ¥ÀÌÆ®¿ë zip »ý¼º (GitHub Release Ã·ºÎÆÄÀÏ - app/updater.py°¡ ÀÌ zipÀ»
+echo    ³»·Á¹Þ¾Æ ¼³Ä¡ Æú´õ ÀüÃ¼¸¦ °»½ÅÇÑ´Ù)...
+if exist "%PROJECT_DIR%dist\%APP_NAME%.zip" del "%PROJECT_DIR%dist\%APP_NAME%.zip"
+powershell -NoProfile -Command "Compress-Archive -Path '%PROJECT_DIR%dist\%APP_NAME%\*' -DestinationPath '%PROJECT_DIR%dist\%APP_NAME%.zip' -Force"
+if errorlevel 1 (
+    echo °æ°í: ¹èÆ÷¿ë zip »ý¼º¿¡ ½ÇÆÐÇß½À´Ï´Ù. GitHub ¸±¸®Áî¿¡´Â ÀÌ zipÀ» ¿Ã·Á¾ß ÇÕ´Ï´Ù.
 )
 
 echo.
-echo ì™„ë£Œ: %PROJECT_DIR%dist\%APP_NAME%.exe
-echo (exeì™€ config.inië¥¼ ê°™ì´ ë³µì‚¬/ì´ë™í•˜ë©´ ì–´ë””ë¡œ ì˜®ê²¨ë„ ê·¸ëŒ€ë¡œ ë™ìž‘í•©ë‹ˆë‹¤)
+echo ¿Ï·á: %PROJECT_DIR%dist\%APP_NAME%\%APP_NAME%.exe
+echo (Æú´õ ÀüÃ¼¸¦ ±×´ë·Î ¿Å°Ü¾ß µ¿ÀÛÇÕ´Ï´Ù - exe ÆÄÀÏ ÇÏ³ª¸¸ º¹»çÇÏ¸é ½ÇÇàµÇÁö ¾Ê½À´Ï´Ù)
+echo ¹èÆ÷/¾÷µ¥ÀÌÆ®¿ë zip: %PROJECT_DIR%dist\%APP_NAME%.zip
 pause

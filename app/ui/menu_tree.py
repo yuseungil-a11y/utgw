@@ -23,6 +23,7 @@ MENU_TREE: list[MenuItem] = [
             MenuItem(label="프로젝트 원가", content_key="project_cost"),
             MenuItem(label="한국도로공사 투입인력관리", content_key="project_manpower"),
             MenuItem(label="프로젝트 실행원가 비교", content_key="project_input_mm"),
+            MenuItem(label="프로젝트 인력 투입", content_key="project_headcount"),
         ],
     ),
     MenuItem(
@@ -39,6 +40,9 @@ MENU_TREE: list[MenuItem] = [
     ),
     MenuItem(
         label="운영관리",
-        children=[MenuItem(label="정의중")],
+        children=[
+            MenuItem(label="정의중"),
+            MenuItem(label="프로그램 업데이트", content_key="app_update"),
+        ],
     ),
 ]

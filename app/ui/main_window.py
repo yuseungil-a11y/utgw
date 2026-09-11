@@ -1,8 +1,9 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QPushButton,
     QSplitter,
     QStackedWidget,
     QTreeWidget,
@@ -16,13 +17,38 @@ from app.config import AppConfig
 from app.ui.dashboard_view import DashboardView
 from app.ui.menu_tree import MENU_TREE
 from app.ui.project_cost_dialog import ProjectCostDialog
+from app.ui.project_headcount_dialog import ProjectHeadcountDialog
 from app.ui.project_input_mm_dialog import ProjectInputMmDialog
 from app.ui.project_manpower_dialog import ProjectManpowerDialog
 from app.ui.sales_purchase_dialog import SalesPurchaseDialog
 from app.ui.theme import build_menu_tree_qss, current_theme
+from app.ui.update_dialog import UpdateDialog
+from app.updater import ReleaseInfo, get_latest_release, is_newer
 from app.version import APP_VERSION
 
 CONTENT_KEY_ROLE = Qt.ItemDataRole.UserRole + 1
+UPDATE_CHECK_INTERVAL_MS = 60_000  # 1분마다 백그라운드로 새 버전이 있는지 확인
+
+
+class _UpdateCheckWorker(QObject):
+    """상단바 배너용 백그라운드 버전 확인. 실패(네트워크 없음 등)는 조용히 무시한다 —
+    사용자가 직접 "프로그램 업데이트" 메뉴에서 확인하면 그때는 원인을 보여준다."""
+
+    finished = Signal(object)
+    error = Signal(str)
+
+    def __init__(self, repo: str, token: str):
+        super().__init__()
+        self._repo = repo
+        self._token = token
+
+    def run(self) -> None:
+        try:
+            info = get_latest_release(self._repo, self._token)
+        except Exception as exc:  # noqa: BLE001 - 백그라운드 자동 체크는 실패를 조용히 무시
+            self.error.emit(str(exc))
+            return
+        self.finished.emit(info)
 
 
 class MainWindow(QMainWindow):
@@ -44,6 +70,14 @@ class MainWindow(QMainWindow):
 
         self._menu_tree = self._build_menu_tree()
         self._topbar = self._build_topbar()
+
+        self._update_thread: QThread | None = None
+        self._update_worker: _UpdateCheckWorker | None = None
+        self._update_timer = QTimer(self)
+        self._update_timer.setInterval(UPDATE_CHECK_INTERVAL_MS)
+        self._update_timer.timeout.connect(self._check_for_update)
+        self._update_timer.start()
+        self._check_for_update()  # 시작하자마자 1회 확인, 이후 1분 주기
 
         splitter = QSplitter()
         splitter.addWidget(self._menu_tree)
@@ -81,6 +115,16 @@ class MainWindow(QMainWindow):
         version_label = QLabel(f"v{APP_VERSION}")
         version_label.setStyleSheet("color: rgba(255, 255, 255, 0.65); font-size: 11px;")
 
+        self._update_banner = QPushButton("")
+        self._update_banner.setVisible(False)
+        self._update_banner.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._update_banner.setStyleSheet(
+            "QPushButton { background-color: #FFC107; color: #1B1C24; border: none; "
+            "border-radius: 10px; padding: 3px 10px; font-size: 11px; font-weight: 600; }"
+            "QPushButton:hover { background-color: #FFCA33; }"
+        )
+        self._update_banner.clicked.connect(self._on_update_banner_clicked)
+
         user_label = QLabel(f"로그인: {self._user.empl_nm}")
         user_label.setStyleSheet("color: white; font-size: 12px;")
 
@@ -89,10 +133,48 @@ class MainWindow(QMainWindow):
         layout.setSpacing(8)
         layout.addWidget(title)
         layout.addWidget(version_label)
+        layout.addWidget(self._update_banner)
         layout.addStretch()
         layout.addWidget(user_label)
         bar.setLayout(layout)
         return bar
+
+    # ------------------------------------------------------------------
+    # 자동 업데이트 확인 (1분 주기, 상단바 배너)
+    # ------------------------------------------------------------------
+    def _check_for_update(self) -> None:
+        if self._update_thread is not None:
+            return  # 이전 확인이 아직 진행 중이면 이번 틱은 건너뜀
+
+        self._update_thread = QThread(self)
+        self._update_worker = _UpdateCheckWorker(self._config.update.repo, self._config.update.token)
+        self._update_worker.moveToThread(self._update_thread)
+
+        self._update_thread.started.connect(self._update_worker.run)
+        self._update_worker.finished.connect(self._on_update_check_finished)
+        self._update_worker.error.connect(self._on_update_check_error)
+        self._update_worker.finished.connect(self._update_thread.quit)
+        self._update_worker.error.connect(self._update_thread.quit)
+        self._update_thread.finished.connect(self._cleanup_update_thread)
+
+        self._update_thread.start()
+
+    def _cleanup_update_thread(self) -> None:
+        self._update_thread = None
+        self._update_worker = None
+
+    def _on_update_check_error(self, _message: str) -> None:
+        pass  # 자동 백그라운드 체크 실패는 조용히 무시(수동 확인은 UpdateDialog에서 안내)
+
+    def _on_update_check_finished(self, info: ReleaseInfo) -> None:
+        if info.version and info.asset is not None and is_newer(APP_VERSION, info.version):
+            self._update_banner.setText(f"🔔 새 버전 v{info.version} 사용 가능 — 클릭해 업데이트")
+            self._update_banner.setVisible(True)
+        else:
+            self._update_banner.setVisible(False)
+
+    def _on_update_banner_clicked(self) -> None:
+        UpdateDialog(self._config, parent=self).exec()
 
     def _build_menu_tree(self) -> QTreeWidget:
         tree = QTreeWidget()
@@ -137,10 +219,18 @@ class MainWindow(QMainWindow):
             ProjectManpowerDialog(self._config, self._user, parent=self).exec()
         elif content_key == "project_input_mm":
             ProjectInputMmDialog(self._config, self._user, parent=self).exec()
+        elif content_key == "project_headcount":
+            ProjectHeadcountDialog(self._config, parent=self).exec()
+        elif content_key == "app_update":
+            UpdateDialog(self._config, parent=self).exec()
         else:
             self._placeholder_label.setText(f"'{item.text(0)}' 화면은 준비중입니다.")
             self._stack.setCurrentWidget(self._placeholder)
 
     def closeEvent(self, event) -> None:
         self._dashboard_view.shutdown()
+        self._update_timer.stop()
+        if self._update_thread is not None:
+            self._update_thread.quit()
+            self._update_thread.wait()
         super().closeEvent(event)

@@ -32,6 +32,14 @@ SECTION_PT = 17
 BODY_PT = 13.5
 CAPTION_PT = 11
 
+# 데이터 그리드가 있는 팝업 화면(프로젝트 원가/투입인력관리/실행원가 비교/인력 투입/
+# 매출매입현황) 공통 크기·폰트. 화면마다 제각각이던 걸 "프로젝트 인력 투입" 화면
+# 기준으로 통일했다 — 그리드 본문/헤더는 앱 기본 폰트(BODY_PT)보다 촘촘한 12px,
+# 창 크기는 FullHD(1920x1080)의 80%.
+POPUP_GRID_FONT_PX = 12
+POPUP_WIDTH = 1536
+POPUP_HEIGHT = 864
+
 
 @dataclass(frozen=True)
 class Theme:

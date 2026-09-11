@@ -9,3 +9,10 @@ password = changeme
 ; 연도별 매출 목표 금액 (원)
 2025 = 0
 2026 = 0
+
+[update]
+; 선택 항목 — 없으면 기본 저장소(app/updater.py의 DEFAULT_REPO)를 토큰 없이 사용한다.
+; repo = owner/repo
+; 저장소가 비공개면 token 없이는 버전 확인이 실패한다(그 저장소 콘텐츠만 읽는
+; fine-grained PAT 권장). 비워두면 공개 저장소로 취급해 익명 요청을 시도한다.
+; token =
