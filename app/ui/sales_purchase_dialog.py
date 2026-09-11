@@ -20,6 +20,7 @@ from openpyxl import Workbook
 
 from app.config import AppConfig
 from app.queries.sales_purchase import COLUMNS, get_sales_purchase_rows
+from app.ui.table_utils import NumericTableWidgetItem, enable_header_sorting
 from app.ui.theme import POPUP_GRID_FONT_PX, POPUP_HEIGHT, POPUP_WIDTH, current_theme
 
 _DIVISION_COL = COLUMNS.index("구분")
@@ -92,6 +93,7 @@ class SalesPurchaseDialog(QDialog):
         self._table.setWordWrap(True)
         self._table.setAlternatingRowColors(True)
         self._table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
+        enable_header_sorting(self._table)
 
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
@@ -164,11 +166,14 @@ class SalesPurchaseDialog(QDialog):
         # 디자인 가이드: 상태값은 배지(배경 채움) 대신 컬러 텍스트만으로 구분한다.
         division_text_colors = {"매출": theme.sales_text, "매입": theme.purchase_text}
 
+        # 정렬 활성화 상태에서 setItem을 반복 호출하면 매번 재정렬을 시도해 느려지고
+        # 엉뚱하게 섞일 수 있어, 채우는 동안은 잠깐 꺼둔다(Qt 공식 권장 패턴).
+        self._table.setSortingEnabled(False)
         self._table.setRowCount(len(self._rows))
         for row_idx, row in enumerate(self._rows):
             for col_idx, value in enumerate(row):
                 text = f"{value:,}" if isinstance(value, int) else str(value)
-                item = QTableWidgetItem(text)
+                item = NumericTableWidgetItem(text) if isinstance(value, int) else QTableWidgetItem(text)
                 if isinstance(value, int):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 if col_idx == _DIVISION_COL:
@@ -181,6 +186,7 @@ class SalesPurchaseDialog(QDialog):
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self._table.setItem(row_idx, col_idx, item)
         self._table.resizeRowsToContents()
+        self._table.setSortingEnabled(True)
 
     def _export_to_excel(self) -> None:
         if not self._rows:

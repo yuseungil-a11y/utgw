@@ -19,6 +19,7 @@ from openpyxl import Workbook
 from app.config import AppConfig
 from app.queries.project_cost import COLUMNS, get_project_cost_rows
 from app.queries.project_input_mm import get_bulk_actuals
+from app.ui.table_utils import NumericTableWidgetItem, enable_header_sorting
 from app.ui.theme import POPUP_GRID_FONT_PX, POPUP_HEIGHT, POPUP_WIDTH, current_theme
 
 _ORG_COL = COLUMNS.index("수행조직")
@@ -80,6 +81,10 @@ class ProjectCostDialog(QDialog):
         self._org_combo.currentTextChanged.connect(self._on_org_filter_changed)
 
         self._compare_checkbox = QCheckBox("실적 집행 비교")
+        self._compare_checkbox.setToolTip(
+            "체크하면 계획 행 아래에 실적 비교 행이 추가됩니다.\n"
+            "이 상태에서는 계획/실적 짝이 흐트러지지 않도록 헤더 클릭 정렬이 잠시 꺼집니다."
+        )
         self._compare_checkbox.toggled.connect(self._on_compare_toggled)
 
         self._status_label = QLabel("")
@@ -111,6 +116,7 @@ class ProjectCostDialog(QDialog):
         self._table.setWordWrap(True)
         self._table.setAlternatingRowColors(True)
         self._table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
+        enable_header_sorting(self._table)
 
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
@@ -193,6 +199,11 @@ class ProjectCostDialog(QDialog):
         show_compare = self._compare_checkbox.isChecked()
         theme = current_theme()
 
+        # 실적 집행 비교 행은 바로 위 계획 행과 짝을 이뤄야 의미가 있어서, 헤더
+        # 클릭 정렬로 행 순서가 바뀌면 그 짝이 깨진다 — 비교를 켠 동안은 정렬을
+        # 끄고, 프로젝트 목록만 볼 때(꺼진 상태)만 정렬을 허용한다.
+        self._table.setSortingEnabled(False)
+
         display_rows: list[tuple[str, tuple]] = []
         for row in self._rows:
             display_rows.append(("plan", row))
@@ -212,7 +223,7 @@ class ProjectCostDialog(QDialog):
             plan_row = display_rows[row_idx - 1][1] if kind == "actual" else None
             for col_idx, value in enumerate(row):
                 text = f"{value:,}" if isinstance(value, int) else str(value)
-                item = QTableWidgetItem(text)
+                item = NumericTableWidgetItem(text) if isinstance(value, int) else QTableWidgetItem(text)
                 if isinstance(value, int):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
@@ -232,6 +243,7 @@ class ProjectCostDialog(QDialog):
 
                 self._table.setItem(row_idx, col_idx, item)
         self._table.resizeRowsToContents()
+        self._table.setSortingEnabled(not show_compare)
 
     def _export_to_excel(self) -> None:
         if not self._rows:

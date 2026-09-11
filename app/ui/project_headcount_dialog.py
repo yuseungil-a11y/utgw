@@ -29,6 +29,7 @@ from app.queries.project_headcount import (
     get_project_month_hours,
     period_months,
 )
+from app.ui.table_utils import NumericTableWidgetItem, enable_header_sorting
 from app.ui.theme import POPUP_GRID_FONT_PX, POPUP_HEIGHT, POPUP_WIDTH, current_theme
 
 _ROW_HEIGHT = 28
@@ -158,6 +159,7 @@ class ProjectHeadcountDialog(QDialog):
         table.setAlternatingRowColors(True)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
+        enable_header_sorting(table)
         return table
 
     def _on_view_changed(self, _checked: bool) -> None:
@@ -213,7 +215,7 @@ class ProjectHeadcountDialog(QDialog):
         return max(58, min(widest + 22, 110))
 
     def _set_hours_cell(self, table: QTableWidget, row: int, col: int, value: float, bold: bool = False) -> None:
-        item = QTableWidgetItem(_fmt_hours(value))
+        item = NumericTableWidgetItem(_fmt_hours(value))
         item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         theme = current_theme()
         if not value:
@@ -224,8 +226,10 @@ class ProjectHeadcountDialog(QDialog):
             item.setFont(font)
         table.setItem(row, col, item)
 
-    def _set_text_cell(self, table: QTableWidget, row: int, col: int, text: str, center: bool = False) -> None:
-        item = QTableWidgetItem(text)
+    def _set_text_cell(
+        self, table: QTableWidget, row: int, col: int, text: str, center: bool = False, numeric: bool = False
+    ) -> None:
+        item = NumericTableWidgetItem(text) if numeric else QTableWidgetItem(text)
         if center:
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         table.setItem(row, col, item)
@@ -235,6 +239,7 @@ class ProjectHeadcountDialog(QDialog):
         months = self._period_months_list
         fixed = len(PROJECT_FIXED_COLUMNS)
         table = self._project_table
+        table.setSortingEnabled(False)
         table.clear()
         table.setColumnCount(fixed + len(months))
         table.setHorizontalHeaderLabels(PROJECT_FIXED_COLUMNS + self._month_headers())
@@ -247,19 +252,21 @@ class ProjectHeadcountDialog(QDialog):
         table.setRowCount(len(self._project_rows))
         for row_idx, prow in enumerate(self._project_rows):
             table.setRowHeight(row_idx, _ROW_HEIGHT)
-            self._set_text_cell(table, row_idx, 0, str(row_idx + 1), center=True)
+            self._set_text_cell(table, row_idx, 0, str(row_idx + 1), center=True, numeric=True)
             self._set_text_cell(table, row_idx, 1, prow.prj_name)
-            self._set_text_cell(table, row_idx, 2, str(prow.headcount), center=True)
+            self._set_text_cell(table, row_idx, 2, str(prow.headcount), center=True, numeric=True)
             self._set_hours_cell(table, row_idx, 3, prow.total_hours, bold=True)
             for offset, (y, m) in enumerate(months):
                 self._set_hours_cell(
                     table, row_idx, 4 + offset, prow.monthly.get(f"{y:04d}{m:02d}", 0.0)
                 )
+        table.setSortingEnabled(True)
 
     def _build_person_table(self) -> None:
         months = self._period_months_list
         fixed = len(PERSON_FIXED_COLUMNS)
         table = self._person_table
+        table.setSortingEnabled(False)
         table.clear()
         table.setColumnCount(fixed + len(months))
         table.setHorizontalHeaderLabels(PERSON_FIXED_COLUMNS + self._month_headers())
@@ -269,27 +276,24 @@ class ProjectHeadcountDialog(QDialog):
         for col in range(fixed, fixed + len(months)):
             table.setColumnWidth(col, month_width)
 
+        # 예전엔 같은 직원의 두 번째 프로젝트부터 소속/이름을 비워 시각적으로
+        # 묶어줬는데, 헤더 클릭 정렬을 켜면 행 순서가 바뀌면서 그 "묶음"이
+        # 아무 의미 없어지므로(엉뚱한 행이 이름 없이 남는다) 매 행에 소속/이름을
+        # 그대로 반복 표시하는 쪽으로 바꿨다 — 정렬해도 각 행이 누구 건지 항상
+        # 보인다.
         table.setRowCount(len(self._person_rows))
-        prev_empl = None
         for row_idx, prow in enumerate(self._person_rows):
             table.setRowHeight(row_idx, _ROW_HEIGHT)
-            self._set_text_cell(table, row_idx, 0, str(row_idx + 1), center=True)
-            # 같은 직원의 두 번째 프로젝트부터는 소속/이름을 비워 시각적으로 묶어준다
-            new_person = prow.empl_id != prev_empl
-            self._set_text_cell(table, row_idx, 1, prow.dept if new_person else "")
-            name_item = QTableWidgetItem(prow.empl_name if new_person else "")
-            if new_person:
-                font = QFont()
-                font.setBold(True)
-                name_item.setFont(font)
-            table.setItem(row_idx, 2, name_item)
-            prev_empl = prow.empl_id
+            self._set_text_cell(table, row_idx, 0, str(row_idx + 1), center=True, numeric=True)
+            self._set_text_cell(table, row_idx, 1, prow.dept)
+            self._set_text_cell(table, row_idx, 2, prow.empl_name)
             self._set_text_cell(table, row_idx, 3, prow.prj_name)
             self._set_hours_cell(table, row_idx, 4, prow.total_hours, bold=True)
             for offset, (y, m) in enumerate(months):
                 self._set_hours_cell(
                     table, row_idx, 5 + offset, prow.monthly.get(f"{y:04d}{m:02d}", 0.0)
                 )
+        table.setSortingEnabled(True)
 
     # ------------------------------------------------------------------
     def _export_to_excel(self) -> None:

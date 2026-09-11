@@ -35,6 +35,7 @@ from app.queries.project_input_mm import (
     get_execution_comparison,
     get_project_options,
 )
+from app.ui.table_utils import NumericTableWidgetItem, enable_header_sorting
 from app.ui.theme import POPUP_GRID_FONT_PX, POPUP_HEIGHT, POPUP_WIDTH, current_theme
 
 _ROWS = [
@@ -108,6 +109,7 @@ class ProjectInputMmDialog(QDialog):
         self._table.setAlternatingRowColors(True)
         self._table.verticalHeader().setVisible(False)
         self._table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
+        enable_header_sorting(self._table)
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         header.setStretchLastSection(True)
@@ -210,6 +212,7 @@ class ProjectInputMmDialog(QDialog):
             )
         self._detail_meta.setText(meta_text)
 
+        self._table.setSortingEnabled(False)
         self._table.setRowCount(len(_ROWS))
         for row_idx, (label, plan_field, actual_field) in enumerate(_ROWS):
             plan_value = getattr(row, plan_field)
@@ -220,10 +223,11 @@ class ProjectInputMmDialog(QDialog):
             self._table.setItem(row_idx, 0, label_item)
 
             for col_idx, value in ((1, plan_value), (2, actual_value), (3, diff_value)):
-                item = QTableWidgetItem(f"{value:,}")
+                item = NumericTableWidgetItem(f"{value:,}")
                 item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 self._table.setItem(row_idx, col_idx, item)
         self._table.resizeRowsToContents()
+        self._table.setSortingEnabled(True)
 
         self._render_chart(row)
 

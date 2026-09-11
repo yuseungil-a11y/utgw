@@ -47,6 +47,7 @@ from app.queries.project_manpower import (
     search_employees,
     search_projects,
 )
+from app.ui.table_utils import NumericTableWidgetItem, enable_header_sorting
 from app.ui.theme import POPUP_GRID_FONT_PX, POPUP_HEIGHT, POPUP_WIDTH, current_theme
 
 _NO_ROLE_LABEL = "(선택 안 함)"
@@ -422,6 +423,9 @@ class ProjectManpowerDialog(QDialog):
         self._list_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._list_table.customContextMenuRequested.connect(self._on_row_context_menu)
         self._list_table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
+        # 헤더 클릭 정렬은 넣지 않는다 — 이 표는 콤보박스가 셀 위젯으로 꽂혀 있고
+        # "저장" 버튼이 화면 행 순서(row_idx)로 원본 데이터를 찾아가는데, 정렬로
+        # 행 순서가 바뀌면 엉뚱한 행에 저장되는 사고로 이어진다.
 
         # WBS(월별) 보기 — 프로젝트별 헤더 행 + 참여 직원의 계약기간을 월별 막대로 표시
         self._wbs_table = QTableWidget()
@@ -432,6 +436,8 @@ class ProjectManpowerDialog(QDialog):
         self._wbs_table.setMinimumHeight(560)
         self._wbs_table.setAlternatingRowColors(True)
         self._wbs_table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
+        # 헤더 클릭 정렬 없음 — 프로젝트명 헤더 행 밑에 그 프로젝트 참여자 행들이
+        # 묶여 있는 구조라, 정렬하면 헤더 행과 데이터 행이 뒤섞여 의미가 없어진다.
 
         # 사람기준 보기 — 직원별로 참여 중인 프로젝트마다 한 행, 계약기간을 월별
         # 막대로 표시한다("프로젝트 현황(사람기준).xlsx" 레이아웃 참조).
@@ -443,6 +449,7 @@ class ProjectManpowerDialog(QDialog):
         self._person_table.setMinimumHeight(560)
         self._person_table.setAlternatingRowColors(True)
         self._person_table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
+        enable_header_sorting(self._person_table)
 
         self._view_stack = QStackedWidget()
         self._view_stack.addWidget(self._list_table)
@@ -873,7 +880,7 @@ class ProjectManpowerDialog(QDialog):
     def _set_person_percent_cell(self, row_idx: int, col_idx: int, value: float) -> None:
         """투입률(평균)/월별 투입률 % 칸. 100%를 넘으면 빨간색으로, 0%면 흐린 회색으로
         표시해 "투입 없음"과 "실제 투입 중"이 한눈에 구분되게 한다."""
-        item = QTableWidgetItem(f"{round(value)}%")
+        item = NumericTableWidgetItem(f"{round(value)}%")
         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         theme = current_theme()
@@ -888,7 +895,7 @@ class ProjectManpowerDialog(QDialog):
         self._person_table.setItem(row_idx, col_idx, item)
 
     def _set_person_count_cell(self, row_idx: int, col_idx: int, count: int, warn: bool) -> None:
-        item = QTableWidgetItem(str(count))
+        item = NumericTableWidgetItem(str(count))
         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         theme = current_theme()
@@ -910,6 +917,7 @@ class ProjectManpowerDialog(QDialog):
         rows_spec = self._person_summary_rows()
         month_headers = [f"{y}.{m}월" for y, m in months]
 
+        self._person_table.setSortingEnabled(False)
         self._person_table.clear()
         self._person_table.setColumnCount(count_col + 1)
         headers = list(PERSON_FIXED_COLUMNS) + ["투입률"] + month_headers + ["투입사업수"]
@@ -941,7 +949,7 @@ class ProjectManpowerDialog(QDialog):
                 employee.join_date,
             ]
             for col_idx, text in enumerate(info_values):
-                item = QTableWidgetItem(text)
+                item = NumericTableWidgetItem(text) if col_idx == 0 else QTableWidgetItem(text)
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self._person_table.setItem(row_idx, col_idx, item)
@@ -950,6 +958,7 @@ class ProjectManpowerDialog(QDialog):
             for offset, value in enumerate(monthly_values):
                 self._set_person_percent_cell(row_idx, month_start_col + offset, value)
             self._set_person_count_cell(row_idx, count_col, project_count, has_overflow)
+        self._person_table.setSortingEnabled(True)
 
     # ------------------------------------------------------------------
     # 엑셀로 저장
