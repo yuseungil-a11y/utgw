@@ -67,7 +67,11 @@ class ProjectHeadcountDialog(QDialog):
         self._end_year, self._end_month = anchor.year, anchor.month
         start_anchor_y = anchor.year - 1
         self._start_year, self._start_month = start_anchor_y, anchor.month % 12 + 1
-        self._min_year = (min_dt.year if min_dt else today.year) - 0
+        # 연도 콤보 범위(min_year~max_year)에 위에서 계산한 시작연도(start_anchor_y)가
+        # 반드시 포함돼야 한다 — 안 그러면 아래 _year_combo의 findData가 실패해서
+        # "시작"이 콤보 마지막 값(최댓값 연도)으로 튀어버려, 조회기간이 "미래 ~ 과거"
+        # 처럼 거꾸로 표시되는 버그가 있었다.
+        self._min_year = min(start_anchor_y, min_dt.year if min_dt else today.year)
         self._max_year = max(anchor.year, today.year) + 1
 
         title_label = QLabel("프로젝트 인력 투입")
@@ -81,12 +85,17 @@ class ProjectHeadcountDialog(QDialog):
         view_group.addButton(self._person_radio)
         self._project_radio.toggled.connect(self._on_view_changed)
 
-        def _year_combo(selected: int) -> QComboBox:
+        def _year_combo(selected: int, fallback_to_latest: bool) -> QComboBox:
+            """selected 연도가 범위 밖이라 못 찾으면(원래는 안 생겨야 하지만 방어적으로),
+            시작 콤보는 최솟값, 종료 콤보는 최댓값으로 폴백한다 — 둘 다 최댓값으로
+            폴백하면 "시작이 종료보다 미래"인 거꾸로 된 기간이 나올 수 있다."""
             combo = QComboBox()
             for year in range(self._min_year, self._max_year + 1):
                 combo.addItem(f"{year}년", year)
             idx = combo.findData(selected)
-            combo.setCurrentIndex(idx if idx >= 0 else combo.count() - 1)
+            if idx < 0:
+                idx = combo.count() - 1 if fallback_to_latest else 0
+            combo.setCurrentIndex(idx)
             return combo
 
         def _month_combo(selected: int) -> QComboBox:
@@ -96,9 +105,9 @@ class ProjectHeadcountDialog(QDialog):
             combo.setCurrentIndex(selected - 1)
             return combo
 
-        self._start_year_combo = _year_combo(self._start_year)
+        self._start_year_combo = _year_combo(self._start_year, fallback_to_latest=False)
         self._start_month_combo = _month_combo(self._start_month)
-        self._end_year_combo = _year_combo(self._end_year)
+        self._end_year_combo = _year_combo(self._end_year, fallback_to_latest=True)
         self._end_month_combo = _month_combo(self._end_month)
 
         search_button = QPushButton("조회")
