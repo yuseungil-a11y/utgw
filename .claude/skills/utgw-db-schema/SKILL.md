@@ -5,9 +5,10 @@ description: UTGW 경영관리 그룹웨어(solweb MySQL DB)의 테이블 구조
 
 # UTGW 경영관리 그룹웨어 — DB 스키마 참조
 
-`solweb` MySQL DB(운영 서버 `221.143.184.22`)의 테이블 89개를 기능 영역별로 정리한 참조 지식입니다.
-전체 목록·컬럼 단위 상세는 [reference.md](reference.md)에 표로 정리되어 있고, 컬럼 수준까지 더 자세한
-설명은 프로젝트 루트의 [그룹웨어 데이터 사전.html](../../../그룹웨어 데이터 사전.html)을 참고하세요.
+`solweb` MySQL DB의 테이블을 기능 영역별로 정리한 참조 지식입니다. 접속 정보(호스트/계정)는
+`config.ini`에서 관리하며 이 문서에는 포함하지 않습니다.
+전체 목록은 [reference.md](reference.md)에 표로 정리되어 있고, 컬럼 수준 상세와 실제 데이터 현황은
+저장소 외부에 별도 보관 중인 데이터 사전 문서를 참고하세요.
 
 ## 사용 시점
 
@@ -24,17 +25,16 @@ description: UTGW 경영관리 그룹웨어(solweb MySQL DB)의 테이블 구조
 - 모든 전자결재 문서는 공통 헤더 `tb_request`를 거치고, 문서종류별 상세 테이블(`tb_request_vctn`, `tb_request_expenses` 등)로 갈라진다. 결재선 진행상황은 `tb_request_approved`(요청 1건당 결재자 수만큼 행 생성)에서 확인한다.
 - DB 접근은 `app/db.py`의 `fetch_all`/`fetch_one`/`execute`/`execute_many`만 사용하고, `ReadOnlyQueryError`로 SELECT 외 쿼리를 막고 있다.
 
-## 알려진 함정 (이번 세션에서 실제로 겪은 버그)
+## 알려진 함정 (엔지니어링 유의사항)
 
-- **`tb_prj_exec_bgt`(실행예산) 재승인은 "증액"이 아니라 "전체 재작성"이다.** `-E-1`, `-E-2` 같은 버전이 쌓이는데, 최신 승인 건(`APPD_DTTM` 기준)만 유효값이고 이전 버전은 무시해야 한다. 모든 버전을 합산하면 이중집계가 된다 — 실제로 프로젝트 원가 화면에서 이 버그가 있었다(`app/queries/project_cost.py`의 `_build_req_to_prj_map()` 참고).
-- **`tb_labor_cost`는 원래 solweb에 없던 테이블**이다. 이 앱이 직접 생성·시딩한다(`app/queries/labor_cost.py`, `APPLY_YEAR` + `SBCTG_CD` 기준). 직급 코드는 새로 만들지 않고 기존 `tb_sub_category`(`MACTG_CD='A1'`)를 그대로 참조한다.
-- **`tb_api_key_manager`는 이 그룹웨어와 무관한 테이블**이다. 같은 DB(`solweb`)를 공유하는 별도 시스템(Qdrant MCP 게이트웨이)이 만든 것으로, 이 코드베이스에서는 참조하지 않는다. 실제 API 키 값(`rag_key`)이 들어 있으므로 절대 조회 결과를 문서나 로그에 그대로 남기지 않는다.
-- **M/M(맨먼스) 환산 기준은 160시간/월, 소수점 1자리**다. `hours / 160`을 반올림한다(`app/ui/project_headcount_dialog.py`의 `_to_mm()` 참고). 시간 단위로 표시된 값을 M/M으로 바꿔 보여줄 때는 반드시 이 기준을 따른다.
-- **`tb_wrkst_diary_info`는 프로젝트별·사람별 투입시간의 원천 테이블**이다(`app/queries/project_headcount.py`). 프로젝트 기준 화면에서 인원이 2명 이상이면 프로젝트 합계 아래에 참여자별 세부 행을 추가해서 보여준다(그룹 구조가 있는 표라 헤더 정렬은 켜지 않는다).
-- **행수(위 표의 "행수")는 특정 시점 스냅샷**이며 운영 데이터라 계속 늘어난다. 스키마 검토용 참고치일 뿐 실시간 값이 아니다.
+- `tb_prj_exec_bgt`(실행예산)의 재승인은 증액이 아니라 전체 재작성 방식이다. 버전이 여러 건 쌓이므로 최신 승인 건(`APPD_DTTM` 기준)만 사용해야 하며, 모두 합산하면 이중집계가 된다(`app/queries/project_cost.py`의 `_build_req_to_prj_map()` 참고).
+- `tb_labor_cost`는 solweb 원본 테이블이 아니라 이 앱이 직접 생성·시딩한다(`app/queries/labor_cost.py`). 직급 코드는 새로 만들지 않고 기존 `tb_sub_category`를 참조한다.
+- `tb_api_key_manager`는 이 그룹웨어와 무관한 별도 시스템의 테이블이다. 코드에서 참조하지 않으며, 민감정보를 포함하므로 조회 결과를 문서·로그에 남기지 않는다.
+- M/M(맨먼스) 환산은 160시간/월 기준, 소수점 1자리로 반올림한다(`app/ui/project_headcount_dialog.py`의 `_to_mm()`).
+- `tb_wrkst_diary_info`는 프로젝트별·사람별 투입시간의 원천 테이블이다(`app/queries/project_headcount.py`). 프로젝트 기준 화면은 인원이 2명 이상이면 세부 행을 추가하므로(그룹 구조) 헤더 정렬을 켜지 않는다.
 
 ## 전체 테이블 목록
 
 [reference.md](reference.md)에 12개 기능 영역(인사·근태, 조직·권한·메뉴, 거래처, 프로젝트·영업/제안,
 프로젝트·기본정보, 실행예산, 매출·매입, 전자결재·요청, 게시판·메시지·알림, 공용자원 예약,
-공통코드·첨부파일·기타, 외부 연동)으로 나눠 89개 테이블 전체를 정리해 두었습니다.
+공통코드·첨부파일·기타, 외부 연동)으로 나눠 테이블명·용도를 정리해 두었습니다.

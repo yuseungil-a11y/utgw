@@ -1,172 +1,160 @@
 # UTGW 경영관리 그룹웨어 — DB 스키마 참조 (solweb)
 
-이 스킬은 `solweb` MySQL DB의 테이블 구조/용도를 기능 영역별로 정리한 참조 지식입니다.
-원본 상세 문서: [그룹웨어 데이터 사전.html](../../../그룹웨어 데이터 사전.html) (전체 89개 테이블, 컬럼 단위 상세 포함)
-
-## 언제 이 스킬을 쓰나
-- 새 화면/쿼리를 만들 때 어떤 테이블에 필요한 데이터가 있는지 찾을 때
-- 기존 기능이 어느 테이블을 참조하는지 파악할 때
-- DB에 테이블/컬럼을 추가하기 전에 기존 명명 규칙·유사 테이블을 확인할 때
+`solweb` MySQL DB의 테이블을 기능 영역별로 정리한 구조 참조입니다. 컬럼 단위 상세와
+실제 데이터 현황은 저장소 외부에 별도 보관 중인 데이터 사전 문서를 참고하세요(레포에는
+구조/명명 규칙만 남깁니다).
 
 ## 테이블 그룹별 요약
 
 ### 인사 · 근태
 _사원 마스터, 근무형태, 휴가, 시간외근무, 투입인력 등급 관리_
 
-| 테이블 | 행수(기준일) | 용도 |
-|---|---|---|
-| `tb_employee` | 50 | 사원 마스터 — 인적사항 · 직급 · 계약 · 급여 · 로그인 이력을 한 테이블에 통합 |
-| `tb_employee_log` | 78 | 사원정보 변경이력 |
-| `tb_employee_emotion` | 7 | 사원 컨디션/감정 기록(사내 정서 체크 기능으로 추정) |
-| `tb_contract` | 0 | 근로계약 이력(고용구분 · 계약기간 · 급여) — 현재 데이터 없음 |
-| `tb_certificate` | 2 | 사원 보유 자격증 |
-| `tb_technology_grade` | 2 | 사원 기술등급(초급/중급/고급/특급 기술자 등급 파일) |
-| `tb_bank_account` | 5 | 사원 급여 입금계좌 |
-| `tbattendancelog` | 0 | 출퇴근 태깅 로그(GTW_TM/OFFW_TM) — 현재 데이터 없음 |
-| `tbattendancerfmng` | 0 | 근태 정정신청 처리 — 현재 데이터 없음 |
-| `tbworkingstatus` | 0 | 사원별 현재 근무형태 설정값 — 현재 데이터 없음 |
-| `tbworkshapelog` | 0 | 근무형태 변경 승인이력 — 현재 데이터 없음 |
-| `tb_tm_else_wrkst` | 1 | 시간외근무 실적(분단위 근무시간 · 수당) |
-| `tb_wrkst_rcrd_info` | 32 | 일별 근태기록 — 출퇴근시각 · 근무구분 · 근무지 |
-| `tb_wrkst_schdul_info` | 0 | 근무 예정 스케줄 — 현재 데이터 없음 |
-| `tb_wrkst_diary_info` | 48 | 프로젝트별 업무일지(투입 시간 기록) |
-| `tb_vctn_info` | 7 | 연차 발생 · 사용 · 차감 현황(연도별) |
-| `tb_vctn_day_info` | 2 | 휴가 사용 일자별 상세 내역 |
-| `tb_holiday` | 14 | 공휴일 정보(연도별) |
-| `tb_extms` | 145 | 프로젝트 참여인력 등록 마스터 — 투입인력관리 화면의 참여자 목록 기준 |
-| `tb_extms_empl` | 24 | 사원별 외부/SW 기술등급 구분값 |
-| `tb_extms_month` | 552 | 월별 투입률(%) 입력값 — 투입인력관리 화면의 월별 셀 데이터 |
+| 테이블 | 용도 |
+|---|---|
+| `tb_employee` | 사원 마스터 |
+| `tb_employee_log` | 사원정보 변경이력 |
+| `tb_employee_emotion` | 사원 컨디션 기록 |
+| `tb_contract` | 근로계약 이력 |
+| `tb_certificate` | 사원 보유 자격증 |
+| `tb_technology_grade` | 사원 기술등급 |
+| `tb_bank_account` | 급여 입금계좌 |
+| `tbattendancelog` | 출퇴근 태깅 로그 |
+| `tbattendancerfmng` | 근태 정정신청 처리 |
+| `tbworkingstatus` | 사원별 근무형태 설정값 |
+| `tbworkshapelog` | 근무형태 변경 승인이력 |
+| `tb_tm_else_wrkst` | 시간외근무 실적 |
+| `tb_wrkst_rcrd_info` | 일별 근태기록 |
+| `tb_wrkst_schdul_info` | 근무 예정 스케줄 |
+| `tb_wrkst_diary_info` | 프로젝트별 업무일지(투입시간 원천 테이블) |
+| `tb_vctn_info` | 연차 발생·사용 현황 |
+| `tb_vctn_day_info` | 휴가 사용 일자별 상세 |
+| `tb_holiday` | 공휴일 정보 |
+| `tb_extms` | 프로젝트 참여인력 등록 마스터 |
+| `tb_extms_empl` | 사원별 외부/SW 기술등급 구분값 |
+| `tb_extms_month` | 월별 투입률(%) 입력값 |
 
 ### 조직 · 권한 · 메뉴
 _부서 구조, 로그인 권한, 화면/메뉴 접근 제어_
 
-| 테이블 | 행수(기준일) | 용도 |
-|---|---|---|
-| `tb_organization` | 7 | 조직(부서) 정보 — 상위조직 연결로 계층구조 구성 |
-| `tb_part` | 0 | 파트(조직 하위단위) — 현재 데이터 없음 |
-| `tb_branch` | 0 | 지사 정보 — 현재 데이터 없음 |
-| `tb_company` | 1 | 회사 기본정보(단일 레코드) |
-| `tb_hq_intr` | 0 | 본부 소개 페이지 콘텐츠 — 현재 데이터 없음 |
-| `tb_auth` | 7 | 권한(역할) 정의 — 예: 관리자/일반사원 등 |
-| `tb_doc_access` | 67 | 권한별 전자결재 문서 접근 설정 |
-| `tb_menu` | 37 | 좌측 메뉴 트리 구조(대메뉴/중메뉴, 경로, 아이콘) |
-| `tb_menu_access` | 253 | 권한별 메뉴 CRUD(생성/조회/수정/삭제) 접근 설정 |
-| `tbauthority` | 0 | 사원-권한 매핑 — 현재 데이터 없음 |
+| 테이블 | 용도 |
+|---|---|
+| `tb_organization` | 조직(부서) 정보 |
+| `tb_part` | 파트(조직 하위단위) |
+| `tb_branch` | 지사 정보 |
+| `tb_company` | 회사 기본정보 |
+| `tb_hq_intr` | 본부 소개 콘텐츠 |
+| `tb_auth` | 권한(역할) 정의 |
+| `tb_doc_access` | 권한별 전자결재 문서 접근 설정 |
+| `tb_menu` | 좌측 메뉴 트리 구조 |
+| `tb_menu_access` | 권한별 메뉴 CRUD 접근 설정 |
+| `tbauthority` | 사원-권한 매핑 |
 
 ### 거래처
-_고객사 · 협력사 정보_
-
-| 테이블 | 행수(기준일) | 용도 |
-|---|---|---|
-| `tb_account` | 43 | 거래처(고객사/협력사) 기본정보 — 사업자번호 · 통장사본 포함 |
-| `tb_account_manager` | 49 | 거래처 담당자 연락처 |
+| 테이블 | 용도 |
+|---|---|
+| `tb_account` | 거래처(고객사/협력사) 기본정보 |
+| `tb_account_manager` | 거래처 담당자 연락처 |
 
 ### 프로젝트 · 영업/제안
-_수주 전 단계: 발굴부터 제안 · 입찰까지_
+_수주 전 단계_
 
-| 테이블 | 행수(기준일) | 용도 |
-|---|---|---|
-| `table18` | 0 | 영업단계 워크플로우(발굴→검토→영업→협상→제안→계약→수행) 진행상태 — 현재 데이터 없음 |
-| `tb_prj_pre_sales` | 2 | 사전영업(프리세일즈) — 수주가능성 · 예상매출/이익 산정 |
-| `tb_prj_prpsl` | 2 | 제안 진행 일정 — 제안서 작성 · 입찰 시작/종료일 |
-| `tb_prj_prpsl_attch_file` | 1 | 제안 관련 첨부파일 매핑 |
+| 테이블 | 용도 |
+|---|---|
+| `table18` | 영업단계 워크플로우 진행상태 |
+| `tb_prj_pre_sales` | 사전영업(프리세일즈) |
+| `tb_prj_prpsl` | 제안 진행 일정 |
+| `tb_prj_prpsl_attch_file` | 제안 관련 첨부파일 매핑 |
 
 ### 프로젝트 · 기본정보
 _수주 이후 프로젝트 마스터와 계약 · 투입인력 배정_
 
-| 테이블 | 행수(기준일) | 용도 |
-|---|---|---|
-| `tb_prj_info` | 57 | 프로젝트 마스터 — 코드(YY-PRJ-0000) · 이름 · 기간 · 수행/영업 조직 |
-| `tb_prj_stp` | 228 | 프로젝트 진행단계 변경이력 |
-| `tb_prj_exc` | 2 | 착수 · 중간 · 종료보고 일정/장소 |
-| `tb_prj_exc_attch_file` | 0 | 수행단계 첨부파일 매핑 — 현재 데이터 없음 |
-| `tb_prj_inp_mp` | 146 | 프로젝트 투입인력 배정 — 역할(PM 등) · 투입기간. 프로젝트 원가 화면의 PM 조회에 사용 |
-| `tb_prj_contrt` | 39 | 프로젝트 계약 기본정보 — 매출/매입 구분, 계약코드 |
-| `tb_prj_contrt_rcrd` | 48 | 계약 상세 — 실행예산 승인요청번호(SND_REQ_NO)와 연결 |
+| 테이블 | 용도 |
+|---|---|
+| `tb_prj_info` | 프로젝트 마스터(코드/이름/기간/조직) |
+| `tb_prj_stp` | 프로젝트 진행단계 변경이력 |
+| `tb_prj_exc` | 착수·중간·종료보고 일정 |
+| `tb_prj_exc_attch_file` | 수행단계 첨부파일 매핑 |
+| `tb_prj_inp_mp` | 프로젝트 투입인력 배정(역할·기간) |
+| `tb_prj_contrt` | 프로젝트 계약 기본정보 |
+| `tb_prj_contrt_rcrd` | 계약 상세(실행예산 승인요청과 연결) |
 
 ### 실행예산
-_수주금액 기준으로 원가를 배분하는 승인 프로세스_
+_원가 배분 승인 프로세스_
 
-| 테이블 | 행수(기준일) | 용도 |
-|---|---|---|
-| `tb_prj_exec_bgt` | 11 | 프로젝트별 승인된 실행예산 버전 이력(EXEC_BGT_CD: -E-1, -E-2 …). 재승인은 증액이 아니라 전체 재작성 방식이라 최신 건만 유효값 — 이번 세션에서 이중집계 버그를 발견해 최신 건만 쓰도록 수정함 |
-| `tb_request_exec_bgt` | 18 | 실행예산 승인요청 총액(BSNDVL_PRC = 수주금액 기준가) |
-| `tb_request_exec_bgt_expens` | 60 | 실행예산 경비 세부내역 — 제안비용/재료비 등 소분류 코드로 구분 |
-| `tb_request_exec_bgt_lbcst` | 38 | 실행예산 노무비 세부내역 — 투입인원 × 단가(TOTAL_MM × UNTPC) |
-| `tb_request_exec_bgt_prchss` | 19 | 실행예산 외주(매입) 내역 |
-| `tb_exec_bgt_rate` | 6 | 실행예산 계산용 기준 비율(연도 · 소분류별) |
-| `tb_labor_cost` | 20 | 직급별·연도별 노무비(인월단가) 기준표. 원래 solweb에 없던 테이블로 이 앱이 직접 생성·시딩한다(APPLY_YEAR+SBCTG_CD). SBCTG_CD는 새 코드를 만들지 않고 기존 직급 코드(tb_sub_category, MACTG_CD='A1')를 그대로 참조 — 프로젝트 실행원가 비교 화면의 노무비 실적 계산에 사용 |
+| 테이블 | 용도 |
+|---|---|
+| `tb_prj_exec_bgt` | 프로젝트별 승인된 실행예산 버전 이력 — 재승인은 증액이 아닌 전체 재작성 방식이라 최신 버전만 유효 |
+| `tb_request_exec_bgt` | 실행예산 승인요청 총액 |
+| `tb_request_exec_bgt_expens` | 실행예산 경비 세부내역 |
+| `tb_request_exec_bgt_lbcst` | 실행예산 노무비 세부내역 |
+| `tb_request_exec_bgt_prchss` | 실행예산 외주(매입) 내역 |
+| `tb_exec_bgt_rate` | 실행예산 계산용 기준 비율 |
+| `tb_labor_cost` | 직급별·연도별 노무비 단가표 — solweb 원본 테이블이 아니라 이 앱이 직접 생성·시딩 |
 
 ### 매출 · 매입
-_청구 · 세금계산서 발행 현황_
-
-| 테이블 | 행수(기준일) | 용도 |
-|---|---|---|
-| `tb_prj_sales_prchss` | 47 | 프로젝트 매출/매입 청구 현황 — 세금계산서 발행요청/발행/확정일 |
-| `tb_prj_sales_prchss_mdfd_rcrd` | 0 | 매출/매입 상태변경 이력 — 현재 데이터 없음 |
-| `tb_request_sales_prchss` | 60 | 매출/매입 등록요청 — 계약금액 · 계약기간 |
+| 테이블 | 용도 |
+|---|---|
+| `tb_prj_sales_prchss` | 프로젝트 매출/매입 청구 현황 |
+| `tb_prj_sales_prchss_mdfd_rcrd` | 매출/매입 상태변경 이력 |
+| `tb_request_sales_prchss` | 매출/매입 등록요청 |
 
 ### 전자결재 · 요청
-_모든 결재문서가 공통 헤더(tb_request)를 거치고, 문서종류별 상세 테이블로 갈라짐_
+_모든 결재문서가 공통 헤더(`tb_request`)를 거치고 문서종류별 상세 테이블로 갈라짐_
 
-| 테이블 | 행수(기준일) | 용도 |
-|---|---|---|
-| `tb_request` | 138 | 전자결재 요청 공통 헤더 — 모든 결재문서(휴가/경비/기안서 등)가 여기서 시작 |
-| `tb_request_approved` | 484 | 결재선별 승인/반려 처리 현황 — 요청 1건당 결재자 수만큼 행 생성 |
-| `tb_request_drrq` | 26 | 기안서 본문(제목 · 내용) |
-| `tb_request_drrq_form` | 6 | 기안서 양식 템플릿 |
-| `tb_mng_approved_process` | 3 | 문서종류별 결재라인(승인자) 설정 |
-| `tb_mng_document` | 14 | 전자결재 문서종류 마스터 — 문서ID ↔ 저장 테이블명 매핑 |
-| `tb_mng_document2` | 0 | 문서종류 마스터 예비/이력 테이블 — 현재 데이터 없음 |
-| `tb_request_vctn` | 4 | 휴가 신청 |
-| `tb_request_expenses` | 29 | 경비 지출결의 신청 — 카드/지급상태 포함 |
-| `tb_request_exps_decsn` | 28 | 경비 정산 확정 처리 |
-| `tb_request_businesstrip_order` | 0 | 출장명령 신청 — 현재 데이터 없음 |
-| `tb_request_flextime` | 0 | 시차출퇴근 신청 — 현재 데이터 없음 |
-| `tb_request_work_home` | 1 | 재택근무 신청 |
-| `tb_request_wrkst_mdat` | 2 | 근태(출퇴근시각) 정정 신청 |
-| `tb_request_cowork_project` | 6 | 타부서 협업 지원요청 |
-| `tb_request_cwk_inp_mp_info` | 9 | 협업요청 투입인력 배정 |
-| `tb_request_cwk_inp_role` | 7 | 협업요청 역할별 인건비 정보 |
-| `tb_request_input_project` | 1 | 프로젝트 투입 신청 — 현재 데이터 없음 |
-| `tb_request_tm_else_wrkst` | 1 | 시간외근무 신청 |
+| 테이블 | 용도 |
+|---|---|
+| `tb_request` | 전자결재 요청 공통 헤더 |
+| `tb_request_approved` | 결재선별 승인/반려 처리 현황 |
+| `tb_request_drrq` | 기안서 본문 |
+| `tb_request_drrq_form` | 기안서 양식 템플릿 |
+| `tb_mng_approved_process` | 문서종류별 결재라인 설정 |
+| `tb_mng_document` | 전자결재 문서종류 마스터 |
+| `tb_mng_document2` | 문서종류 마스터 예비 테이블 |
+| `tb_request_vctn` | 휴가 신청 |
+| `tb_request_expenses` | 경비 지출결의 신청 |
+| `tb_request_exps_decsn` | 경비 정산 확정 처리 |
+| `tb_request_businesstrip_order` | 출장명령 신청 |
+| `tb_request_flextime` | 시차출퇴근 신청 |
+| `tb_request_work_home` | 재택근무 신청 |
+| `tb_request_wrkst_mdat` | 근태 정정 신청 |
+| `tb_request_cowork_project` | 타부서 협업 지원요청 |
+| `tb_request_cwk_inp_mp_info` | 협업요청 투입인력 배정 |
+| `tb_request_cwk_inp_role` | 협업요청 역할별 인건비 정보 |
+| `tb_request_input_project` | 프로젝트 투입 신청 |
+| `tb_request_tm_else_wrkst` | 시간외근무 신청 |
 
 ### 게시판 · 메시지 · 알림
-_사내 공지, 쪽지, 시스템 알림_
-
-| 테이블 | 행수(기준일) | 용도 |
-|---|---|---|
-| `tb_board_category` | 2 | 게시판 종류(공지사항 등) |
-| `tb_board_post` | 1 | 게시글 |
-| `tb_board_comment` | 0 | 게시글 댓글 — 현재 데이터 없음 |
-| `tb_message_send` | 8 | 발신 쪽지(일반/공지/칭찬) |
-| `tb_message_receive` | 10 | 수신 쪽지 열람현황 |
-| `tbnotificationsinfo` | 0 | 시스템 알림 발생이력 — 현재 데이터 없음 |
+| 테이블 | 용도 |
+|---|---|
+| `tb_board_category` | 게시판 종류 |
+| `tb_board_post` | 게시글 |
+| `tb_board_comment` | 게시글 댓글 |
+| `tb_message_send` | 발신 쪽지 |
+| `tb_message_receive` | 수신 쪽지 열람현황 |
+| `tbnotificationsinfo` | 시스템 알림 발생이력 |
 
 ### 공용자원 예약
-_회의실 · 법인차량_
-
-| 테이블 | 행수(기준일) | 용도 |
-|---|---|---|
-| `tb_meetroom_info` | 4 | 회의실 정보 |
-| `tb_meetroom_resv` | 100 | 회의실 예약 |
-| `tb_car_info` | 1 | 법인차량 정보 |
-| `tb_car_resv` | 0 | 법인차량 예약 — 현재 데이터 없음 |
+| 테이블 | 용도 |
+|---|---|
+| `tb_meetroom_info` | 회의실 정보 |
+| `tb_meetroom_resv` | 회의실 예약 |
+| `tb_car_info` | 법인차량 정보 |
+| `tb_car_resv` | 법인차량 예약 |
 
 ### 공통코드 · 첨부파일 · 기타
 _전 화면이 공유하는 코드 테이블과 파일 저장소_
 
-| 테이블 | 행수(기준일) | 용도 |
-|---|---|---|
-| `tb_main_category` | 47 | 공통 대분류 코드(예: A, D, P 계열 코드의 상위 분류) |
-| `tb_sub_category` | 336 | 공통 소분류 코드 — 근태/경비/프로젝트 등 전 화면의 드롭다운 값 원천 |
-| `tb_attach_file` | 361 | 첨부파일 개별 정보 — 실제 파일명/경로/URL |
-| `tb_attach_file_group` | 248 | 첨부파일 묶음(그룹) 단위 |
-| `tb_solution` | 0 | 조직별 보유 솔루션 소개자료 — 현재 데이터 없음 |
+| 테이블 | 용도 |
+|---|---|
+| `tb_main_category` | 공통 대분류 코드 |
+| `tb_sub_category` | 공통 소분류 코드(드롭다운 값 원천) |
+| `tb_attach_file` | 첨부파일 개별 정보 |
+| `tb_attach_file_group` | 첨부파일 묶음 단위 |
+| `tb_solution` | 조직별 보유 솔루션 소개자료 |
 
 ### 외부 연동 (그룹웨어 무관)
 _이 경영관리 프로그램이 아니라 다른 사내 시스템이 같은 DB(solweb)를 함께 쓰면서 만든 테이블_
 
-| 테이블 | 행수(기준일) | 용도 |
-|---|---|---|
-| `tb_api_key_manager` | 140 | Qdrant MCP 게이트웨이 API 키 관리 — scope(personal/shared/proposal_data)·사용자별 rag_key 발급 및 활성화(active Y/N) 상태 저장. 이 그룹웨어 코드에서는 참조하지 않음. 실제 키 값(rag_key)은 민감정보라 이 문서에 옮기지 않았음 |
+| 테이블 | 용도 |
+|---|---|
+| `tb_api_key_manager` | 별도 시스템의 API 키 관리 테이블. 이 그룹웨어 코드에서는 참조하지 않음(민감정보 포함이라 상세 미기재) |
