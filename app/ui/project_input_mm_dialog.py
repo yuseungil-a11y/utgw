@@ -111,11 +111,15 @@ class ProjectInputMmDialog(QDialog):
         self._table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
         enable_header_sorting(self._table)
         header = self._table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        header.setStretchLastSection(True)
+        # "항목"만 고정폭(라벨 텍스트 길이에 맞춤)으로 두고, 계획/실적/차이 세
+        # 숫자 컬럼은 창 너비에 맞춰 균등하게 나눠 갖게 한다 — 예전엔 마지막
+        # 컬럼(차이)만 stretchLastSection으로 남는 공간을 다 가져가서, 팝업이
+        # 넓어질수록 그 컬럼만 과하게 늘어나 균형이 안 맞았다.
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self._table.setColumnWidth(0, 160)
-        self._table.setColumnWidth(1, 160)
-        self._table.setColumnWidth(2, 160)
 
         self._note_label = QLabel(
             "※ 노무비 실적은 업무일지(투입시간)를 직원 직급·근무연도별로 묶어 "

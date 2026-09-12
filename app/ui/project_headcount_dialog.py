@@ -143,7 +143,10 @@ class ProjectHeadcountDialog(QDialog):
         self._status_label.setProperty("role", "secondary")
 
         self._project_table = self._make_grid()
+        # 투입인원이 2명 이상인 프로젝트는 그 밑에 참여자별 세부 행을 붙이는 구조라
+        # (아래 _build_project_table 참고), 헤더 클릭 정렬을 켜면 그 묶음이 깨진다.
         self._person_table = self._make_grid()
+        enable_header_sorting(self._person_table)
 
         self._view_stack = QStackedWidget()
         self._view_stack.addWidget(self._project_table)
@@ -168,7 +171,6 @@ class ProjectHeadcountDialog(QDialog):
         table.setAlternatingRowColors(True)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         table.setStyleSheet(f"font-size: {POPUP_GRID_FONT_PX}px;")
-        enable_header_sorting(table)
         return table
 
     def _on_view_changed(self, _checked: bool) -> None:
@@ -244,7 +246,16 @@ class ProjectHeadcountDialog(QDialog):
         table.setItem(row, col, item)
 
     # ------------------------------------------------------------------
+    def _persons_by_project(self) -> dict[str, list]:
+        grouped: dict[str, list] = {}
+        for prow in self._person_rows:
+            grouped.setdefault(prow.prj_id, []).append(prow)
+        return grouped
+
     def _build_project_table(self) -> None:
+        """투입인원이 2명 이상인 프로젝트는 합계 행 바로 아래에 참여자별 세부 행을
+        덧붙인다(이름·소속·개인별 월별 투입시간). 1명뿐인 프로젝트는 굳이 똑같은
+        내용을 두 번 보여줄 필요가 없어 세부 행을 만들지 않는다."""
         months = self._period_months_list
         fixed = len(PROJECT_FIXED_COLUMNS)
         table = self._project_table
@@ -258,18 +269,51 @@ class ProjectHeadcountDialog(QDialog):
         for col in range(fixed, fixed + len(months)):
             table.setColumnWidth(col, month_width)
 
-        table.setRowCount(len(self._project_rows))
-        for row_idx, prow in enumerate(self._project_rows):
+        persons_by_prj = self._persons_by_project()
+        display_rows: list[tuple[str, object]] = []
+        for prow in self._project_rows:
+            display_rows.append(("project", prow))
+            if prow.headcount > 1:
+                for person in persons_by_prj.get(prow.prj_id, []):
+                    display_rows.append(("person", person))
+
+        theme = current_theme()
+        table.setRowCount(len(display_rows))
+        seq = 0
+        for row_idx, (kind, item) in enumerate(display_rows):
             table.setRowHeight(row_idx, _ROW_HEIGHT)
-            self._set_text_cell(table, row_idx, 0, str(row_idx + 1), center=True, numeric=True)
-            self._set_text_cell(table, row_idx, 1, prow.prj_name)
-            self._set_text_cell(table, row_idx, 2, str(prow.headcount), center=True, numeric=True)
-            self._set_hours_cell(table, row_idx, 3, prow.total_hours, bold=True)
+            if kind == "project":
+                seq += 1
+                self._set_text_cell(table, row_idx, 0, str(seq), center=True, numeric=True)
+                self._set_text_cell(table, row_idx, 1, item.prj_name)
+                self._set_text_cell(table, row_idx, 2, str(item.headcount), center=True, numeric=True)
+                self._set_hours_cell(table, row_idx, 3, item.total_hours, bold=True)
+                for offset, (y, m) in enumerate(months):
+                    self._set_hours_cell(
+                        table, row_idx, 4 + offset, item.monthly.get(f"{y:04d}{m:02d}", 0.0)
+                    )
+                continue
+
+            # kind == "person": 참여자 세부 행 — 순번/투입인원 칸은 비우고, 이름
+            # 앞에 들여쓰기 표시를 붙여 위 프로젝트 행에 속한다는 걸 나타낸다.
+            self._set_text_cell(table, row_idx, 0, "")
+            name_item = QTableWidgetItem(f"　└ {item.empl_name} ({item.dept})")
+            name_item.setForeground(QColor(theme.text_secondary))
+            table.setItem(row_idx, 1, name_item)
+            self._set_text_cell(table, row_idx, 2, "")
+            hours_item = NumericTableWidgetItem(_fmt_hours(item.total_hours))
+            hours_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            hours_item.setForeground(QColor(theme.text_secondary))
+            table.setItem(row_idx, 3, hours_item)
             for offset, (y, m) in enumerate(months):
-                self._set_hours_cell(
-                    table, row_idx, 4 + offset, prow.monthly.get(f"{y:04d}{m:02d}", 0.0)
-                )
-        table.setSortingEnabled(True)
+                value = item.monthly.get(f"{y:04d}{m:02d}", 0.0)
+                cell_item = NumericTableWidgetItem(_fmt_hours(value))
+                cell_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                if not value:
+                    cell_item.setForeground(QColor(theme.text_secondary))
+                table.setItem(row_idx, 4 + offset, cell_item)
+        # 세부 행이 있는 프로젝트는 그 묶음이 정렬로 흐트러지면 안 되므로, 이 표는
+        # 정렬을 켜지 않는다(person_table에서 개인 기준으로 얼마든지 정렬 가능).
 
     def _build_person_table(self) -> None:
         months = self._period_months_list
@@ -332,14 +376,32 @@ class ProjectHeadcountDialog(QDialog):
             headers = list(PROJECT_FIXED_COLUMNS) + month_headers
             for col_idx, text in enumerate(headers, start=1):
                 sheet.cell(row=1, column=col_idx, value=text)
-            for row_idx, prow in enumerate(self._project_rows, start=2):
-                values = [row_idx - 1, prow.prj_name, prow.headcount, prow.total_hours] + [
+
+            persons_by_prj = self._persons_by_project()
+            person_font = XlFont(color="5B5F73")
+            excel_row = 2
+            seq = 0
+            for prow in self._project_rows:
+                seq += 1
+                values = [seq, prow.prj_name, prow.headcount, prow.total_hours] + [
                     prow.monthly.get(f"{y:04d}{m:02d}", 0.0) for y, m in months
                 ]
                 for col_idx, value in enumerate(values, start=1):
-                    cell = sheet.cell(row=row_idx, column=col_idx, value=value)
+                    cell = sheet.cell(row=excel_row, column=col_idx, value=value)
                     if col_idx >= 4 and not value:
                         cell.font = zero_font
+                excel_row += 1
+
+                if prow.headcount <= 1:
+                    continue
+                for person in persons_by_prj.get(prow.prj_id, []):
+                    person_values = [None, f"　└ {person.empl_name} ({person.dept})", None, person.total_hours] + [
+                        person.monthly.get(f"{y:04d}{m:02d}", 0.0) for y, m in months
+                    ]
+                    for col_idx, value in enumerate(person_values, start=1):
+                        cell = sheet.cell(row=excel_row, column=col_idx, value=value)
+                        cell.font = person_font
+                    excel_row += 1
         else:
             sheet.title = "사람별 프로젝트 인력투입"
             headers = list(PERSON_FIXED_COLUMNS) + month_headers
