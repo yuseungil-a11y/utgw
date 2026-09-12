@@ -4456,7 +4456,7 @@
     </div>
 
     <div class="stat-row">
-      <div class="stat"><b id="stat-total">87</b><span>전체 테이블</span></div>
+      <div class="stat"><b id="stat-total">89</b><span>전체 테이블</span></div>
       <div class="stat"><b id="stat-empty">21</b><span>미사용(0건)</span></div>
     </div>
 
@@ -4471,7 +4471,7 @@
   <main>
     <header class="page">
       <h1>테이블 전체 목록 &amp; 용도</h1>
-      <p>운영 DB <span class="mono">solweb</span>의 테이블 87개를 기능 영역별로 묶고, 실제 컬럼 구성과 데이터를 근거로 용도를 정리했습니다. 노란 배지는 이번 세션에서 실제 코드/데이터로 확인한 특이사항입니다.</p>
+      <p>운영 DB <span class="mono">solweb</span>의 테이블 89개(앱이 직접 생성한 <span class="mono">tb_labor_cost</span>, 다른 시스템이 만든 <span class="mono">tb_api_key_manager</span> 포함)를 기능 영역별로 묶고, 실제 컬럼 구성과 데이터를 근거로 용도를 정리했습니다. 노란 배지는 실제 코드/데이터로 확인한 특이사항입니다. (최근 업데이트: 2026-09-12)</p>
     </header>
 
     <div id="sections"><section class="group" id="g0"><h2>인사 · 근태 <span class="count">21개</span></h2><p class="group-note">사원 마스터, 근무형태, 휴가, 시간외근무, 투입인력 등급 관리</p><div class="table-list"><div class="row" data-search="tb_employee 사원 마스터 — 인적사항 · 직급 · 계약 · 급여 · 로그인 이력을 한 테이블에 통합"><div class="name mono">tb_employee</div><div class="count-badge">50건</div><div class="desc">사원 마스터 — 인적사항 · 직급 · 계약 · 급여 · 로그인 이력을 한 테이블에 통합</div></div><div class="row" data-search="tb_employee_log 사원정보 변경이력"><div class="name mono">tb_employee_log</div><div class="count-badge">79건</div><div class="desc">사원정보 변경이력</div></div><div class="row" data-search="tb_employee_emotion 사원 컨디션/감정 기록(사내 정서 체크 기능으로 추정)"><div class="name mono">tb_employee_emotion</div><div class="count-badge">6건</div><div class="desc">사원 컨디션/감정 기록(사내 정서 체크 기능으로 추정)</div></div><div class="row" data-search="tb_contract 근로계약 이력(고용구분 · 계약기간 · 급여) — 현재 데이터 없음"><div class="name mono">tb_contract</div><div class="count-badge empty">0건</div><div class="desc">근로계약 이력(고용구분 · 계약기간 · 급여) — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_certificate 사원 보유 자격증"><div class="name mono">tb_certificate</div><div class="count-badge">2건</div><div class="desc">사원 보유 자격증</div></div><div class="row" data-search="tb_technology_grade 사원 기술등급(초급/중급/고급/특급 기술자 등급 파일)"><div class="name mono">tb_technology_grade</div><div class="count-badge">2건</div><div class="desc">사원 기술등급(초급/중급/고급/특급 기술자 등급 파일)</div></div><div class="row" data-search="tb_bank_account 사원 급여 입금계좌"><div class="name mono">tb_bank_account</div><div class="count-badge">5건</div><div class="desc">사원 급여 입금계좌</div></div><div class="row" data-search="tbattendancelog 출퇴근 태깅 로그(gtw_tm/offw_tm) — 현재 데이터 없음"><div class="name mono">tbattendancelog</div><div class="count-badge empty">0건</div><div class="desc">출퇴근 태깅 로그(GTW_TM/OFFW_TM) — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tbattendancerfmng 근태 정정신청 처리 — 현재 데이터 없음"><div class="name mono">tbattendancerfmng</div><div class="count-badge empty">0건</div><div class="desc">근태 정정신청 처리 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tbworkingstatus 사원별 현재 근무형태 설정값 — 현재 데이터 없음"><div class="name mono">tbworkingstatus</div><div class="count-badge empty">0건</div><div class="desc">사원별 현재 근무형태 설정값 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tbworkshapelog 근무형태 변경 승인이력 — 현재 데이터 없음"><div class="name mono">tbworkshapelog</div><div class="count-badge empty">0건</div><div class="desc">근무형태 변경 승인이력 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_tm_else_wrkst 시간외근무 실적(분단위 근무시간 · 수당)"><div class="name mono">tb_tm_else_wrkst</div><div class="count-badge">1건</div><div class="desc">시간외근무 실적(분단위 근무시간 · 수당)</div></div><div class="row" data-search="tb_wrkst_rcrd_info 일별 근태기록 — 출퇴근시각 · 근무구분 · 근무지"><div class="name mono">tb_wrkst_rcrd_info</div><div class="count-badge">31건</div><div class="desc">일별 근태기록 — 출퇴근시각 · 근무구분 · 근무지</div></div><div class="row" data-search="tb_wrkst_schdul_info 근무 예정 스케줄 — 현재 데이터 없음"><div class="name mono">tb_wrkst_schdul_info</div><div class="count-badge empty">0건</div><div class="desc">근무 예정 스케줄 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_wrkst_diary_info 프로젝트별 업무일지(투입 시간 기록)"><div class="name mono">tb_wrkst_diary_info</div><div class="count-badge">33건</div><div class="desc">프로젝트별 업무일지(투입 시간 기록)</div></div><div class="row" data-search="tb_vctn_info 연차 발생 · 사용 · 차감 현황(연도별)"><div class="name mono">tb_vctn_info</div><div class="count-badge">7건</div><div class="desc">연차 발생 · 사용 · 차감 현황(연도별)</div></div><div class="row" data-search="tb_vctn_day_info 휴가 사용 일자별 상세 내역"><div class="name mono">tb_vctn_day_info</div><div class="count-badge">2건</div><div class="desc">휴가 사용 일자별 상세 내역</div></div><div class="row" data-search="tb_holiday 공휴일 정보(연도별)"><div class="name mono">tb_holiday</div><div class="count-badge">14건</div><div class="desc">공휴일 정보(연도별)</div></div><div class="row" data-search="tb_extms 프로젝트 참여인력 등록 마스터 — 투입인력관리 화면의 참여자 목록 기준"><div class="name mono">tb_extms</div><div class="count-badge">148건</div><div class="desc">프로젝트 참여인력 등록 마스터 — 투입인력관리 화면의 참여자 목록 기준</div></div><div class="row" data-search="tb_extms_empl 사원별 외부/sw 기술등급 구분값"><div class="name mono">tb_extms_empl</div><div class="count-badge">24건</div><div class="desc">사원별 외부/SW 기술등급 구분값</div></div><div class="row" data-search="tb_extms_month 월별 투입률(%) 입력값 — 투입인력관리 화면의 월별 셀 데이터"><div class="name mono">tb_extms_month</div><div class="count-badge">474건</div><div class="desc">월별 투입률(%) 입력값 — 투입인력관리 화면의 월별 셀 데이터</div></div></div></section><section class="group" id="g1"><h2>조직 · 권한 · 메뉴 <span class="count">10개</span></h2><p class="group-note">부서 구조, 로그인 권한, 화면/메뉴 접근 제어</p><div class="table-list"><div class="row" data-search="tb_organization 조직(부서) 정보 — 상위조직 연결로 계층구조 구성"><div class="name mono">tb_organization</div><div class="count-badge">7건</div><div class="desc">조직(부서) 정보 — 상위조직 연결로 계층구조 구성</div></div><div class="row" data-search="tb_part 파트(조직 하위단위) — 현재 데이터 없음"><div class="name mono">tb_part</div><div class="count-badge empty">0건</div><div class="desc">파트(조직 하위단위) — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_branch 지사 정보 — 현재 데이터 없음"><div class="name mono">tb_branch</div><div class="count-badge empty">0건</div><div class="desc">지사 정보 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_company 회사 기본정보(단일 레코드)"><div class="name mono">tb_company</div><div class="count-badge">1건</div><div class="desc">회사 기본정보(단일 레코드)</div></div><div class="row" data-search="tb_hq_intr 본부 소개 페이지 콘텐츠 — 현재 데이터 없음"><div class="name mono">tb_hq_intr</div><div class="count-badge empty">0건</div><div class="desc">본부 소개 페이지 콘텐츠 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_auth 권한(역할) 정의 — 예: 관리자/일반사원 등"><div class="name mono">tb_auth</div><div class="count-badge">7건</div><div class="desc">권한(역할) 정의 — 예: 관리자/일반사원 등</div></div><div class="row" data-search="tb_doc_access 권한별 전자결재 문서 접근 설정"><div class="name mono">tb_doc_access</div><div class="count-badge">70건</div><div class="desc">권한별 전자결재 문서 접근 설정</div></div><div class="row" data-search="tb_menu 좌측 메뉴 트리 구조(대메뉴/중메뉴, 경로, 아이콘)"><div class="name mono">tb_menu</div><div class="count-badge">37건</div><div class="desc">좌측 메뉴 트리 구조(대메뉴/중메뉴, 경로, 아이콘)</div></div><div class="row" data-search="tb_menu_access 권한별 메뉴 crud(생성/조회/수정/삭제) 접근 설정"><div class="name mono">tb_menu_access</div><div class="count-badge">253건</div><div class="desc">권한별 메뉴 CRUD(생성/조회/수정/삭제) 접근 설정</div></div><div class="row" data-search="tbauthority 사원-권한 매핑 — 현재 데이터 없음"><div class="name mono">tbauthority</div><div class="count-badge empty">0건</div><div class="desc">사원-권한 매핑 — 현재 데이터 없음<span class="flag">확인됨</span></div></div></div></section><section class="group" id="g2"><h2>거래처 <span class="count">2개</span></h2><p class="group-note">고객사 · 협력사 정보</p><div class="table-list"><div class="row" data-search="tb_account 거래처(고객사/협력사) 기본정보 — 사업자번호 · 통장사본 포함"><div class="name mono">tb_account</div><div class="count-badge">39건</div><div class="desc">거래처(고객사/협력사) 기본정보 — 사업자번호 · 통장사본 포함</div></div><div class="row" data-search="tb_account_manager 거래처 담당자 연락처"><div class="name mono">tb_account_manager</div><div class="count-badge">36건</div><div class="desc">거래처 담당자 연락처</div></div></div></section><section class="group" id="g3"><h2>프로젝트 · 영업/제안 <span class="count">4개</span></h2><p class="group-note">수주 전 단계: 발굴부터 제안 · 입찰까지</p><div class="table-list"><div class="row" data-search="table18 영업단계 워크플로우(발굴→검토→영업→협상→제안→계약→수행) 진행상태 — 현재 데이터 없음"><div class="name mono">table18</div><div class="count-badge empty">0건</div><div class="desc">영업단계 워크플로우(발굴→검토→영업→협상→제안→계약→수행) 진행상태 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_prj_pre_sales 사전영업(프리세일즈) — 수주가능성 · 예상매출/이익 산정"><div class="name mono">tb_prj_pre_sales</div><div class="count-badge">2건</div><div class="desc">사전영업(프리세일즈) — 수주가능성 · 예상매출/이익 산정</div></div><div class="row" data-search="tb_prj_prpsl 제안 진행 일정 — 제안서 작성 · 입찰 시작/종료일"><div class="name mono">tb_prj_prpsl</div><div class="count-badge">2건</div><div class="desc">제안 진행 일정 — 제안서 작성 · 입찰 시작/종료일</div></div><div class="row" data-search="tb_prj_prpsl_attch_file 제안 관련 첨부파일 매핑"><div class="name mono">tb_prj_prpsl_attch_file</div><div class="count-badge">1건</div><div class="desc">제안 관련 첨부파일 매핑</div></div></div></section><section class="group" id="g4"><h2>프로젝트 · 기본정보 <span class="count">7개</span></h2><p class="group-note">수주 이후 프로젝트 마스터와 계약 · 투입인력 배정</p><div class="table-list"><div class="row" data-search="tb_prj_info 프로젝트 마스터 — 코드(yy-prj-0000) · 이름 · 기간 · 수행/영업 조직"><div class="name mono">tb_prj_info</div><div class="count-badge">49건</div><div class="desc">프로젝트 마스터 — 코드(YY-PRJ-0000) · 이름 · 기간 · 수행/영업 조직</div></div><div class="row" data-search="tb_prj_stp 프로젝트 진행단계 변경이력"><div class="name mono">tb_prj_stp</div><div class="count-badge">188건</div><div class="desc">프로젝트 진행단계 변경이력</div></div><div class="row" data-search="tb_prj_exc 착수 · 중간 · 종료보고 일정/장소"><div class="name mono">tb_prj_exc</div><div class="count-badge">2건</div><div class="desc">착수 · 중간 · 종료보고 일정/장소</div></div><div class="row" data-search="tb_prj_exc_attch_file 수행단계 첨부파일 매핑 — 현재 데이터 없음"><div class="name mono">tb_prj_exc_attch_file</div><div class="count-badge empty">0건</div><div class="desc">수행단계 첨부파일 매핑 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_prj_inp_mp 프로젝트 투입인력 배정 — 역할(pm 등) · 투입기간. 프로젝트 원가 화면의 pm 조회에 사용"><div class="name mono">tb_prj_inp_mp</div><div class="count-badge">128건</div><div class="desc">프로젝트 투입인력 배정 — 역할(PM 등) · 투입기간. 프로젝트 원가 화면의 PM 조회에 사용</div></div><div class="row" data-search="tb_prj_contrt 프로젝트 계약 기본정보 — 매출/매입 구분, 계약코드"><div class="name mono">tb_prj_contrt</div><div class="count-badge">29건</div><div class="desc">프로젝트 계약 기본정보 — 매출/매입 구분, 계약코드</div></div><div class="row" data-search="tb_prj_contrt_rcrd 계약 상세 — 실행예산 승인요청번호(snd_req_no)와 연결"><div class="name mono">tb_prj_contrt_rcrd</div><div class="count-badge">39건</div><div class="desc">계약 상세 — 실행예산 승인요청번호(SND_REQ_NO)와 연결</div></div></div></section><section class="group" id="g5"><h2>실행예산 <span class="count">6개</span></h2><p class="group-note">수주금액 기준으로 원가를 배분하는 승인 프로세스</p><div class="table-list"><div class="row" data-search="tb_prj_exec_bgt 프로젝트별 승인된 실행예산 버전 이력(exec_bgt_cd: -e-1, -e-2 …). 재승인은 증액이 아니라 전체 재작성 방식이라 최신 건만 유효값 — 이번 세션에서 이중집계 버그를 발견해 최신 건만 쓰도록 수정함"><div class="name mono">tb_prj_exec_bgt</div><div class="count-badge">11건</div><div class="desc">프로젝트별 승인된 실행예산 버전 이력(EXEC_BGT_CD: -E-1, -E-2 …). 재승인은 증액이 아니라 전체 재작성 방식이라 최신 건만 유효값 — 이번 세션에서 이중집계 버그를 발견해 최신 건만 쓰도록 수정함<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_request_exec_bgt 실행예산 승인요청 총액(bsndvl_prc = 수주금액 기준가)"><div class="name mono">tb_request_exec_bgt</div><div class="count-badge">17건</div><div class="desc">실행예산 승인요청 총액(BSNDVL_PRC = 수주금액 기준가)</div></div><div class="row" data-search="tb_request_exec_bgt_expens 실행예산 경비 세부내역 — 제안비용/재료비 등 소분류 코드로 구분"><div class="name mono">tb_request_exec_bgt_expens</div><div class="count-badge">59건</div><div class="desc">실행예산 경비 세부내역 — 제안비용/재료비 등 소분류 코드로 구분</div></div><div class="row" data-search="tb_request_exec_bgt_lbcst 실행예산 노무비 세부내역 — 투입인원 × 단가(total_mm × untpc)"><div class="name mono">tb_request_exec_bgt_lbcst</div><div class="count-badge">35건</div><div class="desc">실행예산 노무비 세부내역 — 투입인원 × 단가(TOTAL_MM × UNTPC)</div></div><div class="row" data-search="tb_request_exec_bgt_prchss 실행예산 외주(매입) 내역"><div class="name mono">tb_request_exec_bgt_prchss</div><div class="count-badge">19건</div><div class="desc">실행예산 외주(매입) 내역</div></div><div class="row" data-search="tb_exec_bgt_rate 실행예산 계산용 기준 비율(연도 · 소분류별)"><div class="name mono">tb_exec_bgt_rate</div><div class="count-badge">6건</div><div class="desc">실행예산 계산용 기준 비율(연도 · 소분류별)</div></div></div></section><section class="group" id="g6"><h2>매출 · 매입 <span class="count">3개</span></h2><p class="group-note">청구 · 세금계산서 발행 현황</p><div class="table-list"><div class="row" data-search="tb_prj_sales_prchss 프로젝트 매출/매입 청구 현황 — 세금계산서 발행요청/발행/확정일"><div class="name mono">tb_prj_sales_prchss</div><div class="count-badge">35건</div><div class="desc">프로젝트 매출/매입 청구 현황 — 세금계산서 발행요청/발행/확정일</div></div><div class="row" data-search="tb_prj_sales_prchss_mdfd_rcrd 매출/매입 상태변경 이력 — 현재 데이터 없음"><div class="name mono">tb_prj_sales_prchss_mdfd_rcrd</div><div class="count-badge empty">0건</div><div class="desc">매출/매입 상태변경 이력 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_request_sales_prchss 매출/매입 등록요청 — 계약금액 · 계약기간"><div class="name mono">tb_request_sales_prchss</div><div class="count-badge">47건</div><div class="desc">매출/매입 등록요청 — 계약금액 · 계약기간</div></div></div></section><section class="group" id="g7"><h2>전자결재 · 요청 <span class="count">19개</span></h2><p class="group-note">모든 결재문서가 공통 헤더(tb_request)를 거치고, 문서종류별 상세 테이블로 갈라짐</p><div class="table-list"><div class="row" data-search="tb_request 전자결재 요청 공통 헤더 — 모든 결재문서(휴가/경비/기안서 등)가 여기서 시작"><div class="name mono">tb_request</div><div class="count-badge">122건</div><div class="desc">전자결재 요청 공통 헤더 — 모든 결재문서(휴가/경비/기안서 등)가 여기서 시작</div></div><div class="row" data-search="tb_request_approved 결재선별 승인/반려 처리 현황 — 요청 1건당 결재자 수만큼 행 생성"><div class="name mono">tb_request_approved</div><div class="count-badge">435건</div><div class="desc">결재선별 승인/반려 처리 현황 — 요청 1건당 결재자 수만큼 행 생성</div></div><div class="row" data-search="tb_request_drrq 기안서 본문(제목 · 내용)"><div class="name mono">tb_request_drrq</div><div class="count-badge">25건</div><div class="desc">기안서 본문(제목 · 내용)</div></div><div class="row" data-search="tb_request_drrq_form 기안서 양식 템플릿"><div class="name mono">tb_request_drrq_form</div><div class="count-badge">6건</div><div class="desc">기안서 양식 템플릿</div></div><div class="row" data-search="tb_mng_approved_process 문서종류별 결재라인(승인자) 설정"><div class="name mono">tb_mng_approved_process</div><div class="count-badge">3건</div><div class="desc">문서종류별 결재라인(승인자) 설정</div></div><div class="row" data-search="tb_mng_document 전자결재 문서종류 마스터 — 문서id ↔ 저장 테이블명 매핑"><div class="name mono">tb_mng_document</div><div class="count-badge">14건</div><div class="desc">전자결재 문서종류 마스터 — 문서ID ↔ 저장 테이블명 매핑</div></div><div class="row" data-search="tb_mng_document2 문서종류 마스터 예비/이력 테이블 — 현재 데이터 없음"><div class="name mono">tb_mng_document2</div><div class="count-badge empty">0건</div><div class="desc">문서종류 마스터 예비/이력 테이블 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_request_vctn 휴가 신청"><div class="name mono">tb_request_vctn</div><div class="count-badge">4건</div><div class="desc">휴가 신청</div></div><div class="row" data-search="tb_request_expenses 경비 지출결의 신청 — 카드/지급상태 포함"><div class="name mono">tb_request_expenses</div><div class="count-badge">23건</div><div class="desc">경비 지출결의 신청 — 카드/지급상태 포함</div></div><div class="row" data-search="tb_request_exps_decsn 경비 정산 확정 처리"><div class="name mono">tb_request_exps_decsn</div><div class="count-badge">22건</div><div class="desc">경비 정산 확정 처리</div></div><div class="row" data-search="tb_request_businesstrip_order 출장명령 신청 — 현재 데이터 없음"><div class="name mono">tb_request_businesstrip_order</div><div class="count-badge empty">0건</div><div class="desc">출장명령 신청 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_request_flextime 시차출퇴근 신청 — 현재 데이터 없음"><div class="name mono">tb_request_flextime</div><div class="count-badge empty">0건</div><div class="desc">시차출퇴근 신청 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_request_work_home 재택근무 신청"><div class="name mono">tb_request_work_home</div><div class="count-badge">1건</div><div class="desc">재택근무 신청</div></div><div class="row" data-search="tb_request_wrkst_mdat 근태(출퇴근시각) 정정 신청"><div class="name mono">tb_request_wrkst_mdat</div><div class="count-badge">2건</div><div class="desc">근태(출퇴근시각) 정정 신청</div></div><div class="row" data-search="tb_request_cowork_project 타부서 협업 지원요청"><div class="name mono">tb_request_cowork_project</div><div class="count-badge">6건</div><div class="desc">타부서 협업 지원요청</div></div><div class="row" data-search="tb_request_cwk_inp_mp_info 협업요청 투입인력 배정"><div class="name mono">tb_request_cwk_inp_mp_info</div><div class="count-badge">9건</div><div class="desc">협업요청 투입인력 배정</div></div><div class="row" data-search="tb_request_cwk_inp_role 협업요청 역할별 인건비 정보"><div class="name mono">tb_request_cwk_inp_role</div><div class="count-badge">7건</div><div class="desc">협업요청 역할별 인건비 정보</div></div><div class="row" data-search="tb_request_input_project 프로젝트 투입 신청 — 현재 데이터 없음"><div class="name mono">tb_request_input_project</div><div class="count-badge empty">0건</div><div class="desc">프로젝트 투입 신청 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_request_tm_else_wrkst 시간외근무 신청"><div class="name mono">tb_request_tm_else_wrkst</div><div class="count-badge">1건</div><div class="desc">시간외근무 신청</div></div></div></section><section class="group" id="g8"><h2>게시판 · 메시지 · 알림 <span class="count">6개</span></h2><p class="group-note">사내 공지, 쪽지, 시스템 알림</p><div class="table-list"><div class="row" data-search="tb_board_category 게시판 종류(공지사항 등)"><div class="name mono">tb_board_category</div><div class="count-badge">2건</div><div class="desc">게시판 종류(공지사항 등)</div></div><div class="row" data-search="tb_board_post 게시글"><div class="name mono">tb_board_post</div><div class="count-badge">1건</div><div class="desc">게시글</div></div><div class="row" data-search="tb_board_comment 게시글 댓글 — 현재 데이터 없음"><div class="name mono">tb_board_comment</div><div class="count-badge empty">0건</div><div class="desc">게시글 댓글 — 현재 데이터 없음<span class="flag">확인됨</span></div></div><div class="row" data-search="tb_message_send 발신 쪽지(일반/공지/칭찬)"><div class="name mono">tb_message_send</div><div class="count-badge">8건</div><div class="desc">발신 쪽지(일반/공지/칭찬)</div></div><div class="row" data-search="tb_message_receive 수신 쪽지 열람현황"><div class="name mono">tb_message_receive</div><div class="count-badge">10건</div><div class="desc">수신 쪽지 열람현황</div></div><div class="row" data-search="tbnotificationsinfo 시스템 알림 발생이력 — 현재 데이터 없음"><div class="name mono">tbnotificationsinfo</div><div class="count-badge empty">0건</div><div class="desc">시스템 알림 발생이력 — 현재 데이터 없음<span class="flag">확인됨</span></div></div></div></section><section class="group" id="g9"><h2>공용자원 예약 <span class="count">4개</span></h2><p class="group-note">회의실 · 법인차량</p><div class="table-list"><div class="row" data-search="tb_meetroom_info 회의실 정보"><div class="name mono">tb_meetroom_info</div><div class="count-badge">4건</div><div class="desc">회의실 정보</div></div><div class="row" data-search="tb_meetroom_resv 회의실 예약"><div class="name mono">tb_meetroom_resv</div><div class="count-badge">100건</div><div class="desc">회의실 예약</div></div><div class="row" data-search="tb_car_info 법인차량 정보"><div class="name mono">tb_car_info</div><div class="count-badge">1건</div><div class="desc">법인차량 정보</div></div><div class="row" data-search="tb_car_resv 법인차량 예약 — 현재 데이터 없음"><div class="name mono">tb_car_resv</div><div class="count-badge empty">0건</div><div class="desc">법인차량 예약 — 현재 데이터 없음<span class="flag">확인됨</span></div></div></div></section><section class="group" id="g10"><h2>공통코드 · 첨부파일 · 기타 <span class="count">5개</span></h2><p class="group-note">전 화면이 공유하는 코드 테이블과 파일 저장소</p><div class="table-list"><div class="row" data-search="tb_main_category 공통 대분류 코드(예: a, d, p 계열 코드의 상위 분류)"><div class="name mono">tb_main_category</div><div class="count-badge">47건</div><div class="desc">공통 대분류 코드(예: A, D, P 계열 코드의 상위 분류)</div></div><div class="row" data-search="tb_sub_category 공통 소분류 코드 — 근태/경비/프로젝트 등 전 화면의 드롭다운 값 원천"><div class="name mono">tb_sub_category</div><div class="count-badge">336건</div><div class="desc">공통 소분류 코드 — 근태/경비/프로젝트 등 전 화면의 드롭다운 값 원천</div></div><div class="row" data-search="tb_attach_file 첨부파일 개별 정보 — 실제 파일명/경로/url"><div class="name mono">tb_attach_file</div><div class="count-badge">284건</div><div class="desc">첨부파일 개별 정보 — 실제 파일명/경로/URL</div></div><div class="row" data-search="tb_attach_file_group 첨부파일 묶음(그룹) 단위"><div class="name mono">tb_attach_file_group</div><div class="count-badge">248건</div><div class="desc">첨부파일 묶음(그룹) 단위</div></div><div class="row" data-search="tb_solution 조직별 보유 솔루션 소개자료 — 현재 데이터 없음"><div class="name mono">tb_solution</div><div class="count-badge empty">0건</div><div class="desc">조직별 보유 솔루션 소개자료 — 현재 데이터 없음<span class="flag">확인됨</span></div></div></div></section></div>
@@ -4486,8 +4486,8 @@ const GROUPS = [
     note: "사원 마스터, 근무형태, 휴가, 시간외근무, 투입인력 등급 관리",
     rows: [
       ["tb_employee", 50, "사원 마스터 — 인적사항 · 직급 · 계약 · 급여 · 로그인 이력을 한 테이블에 통합"],
-      ["tb_employee_log", 79, "사원정보 변경이력"],
-      ["tb_employee_emotion", 6, "사원 컨디션/감정 기록(사내 정서 체크 기능으로 추정)"],
+      ["tb_employee_log", 78, "사원정보 변경이력"],
+      ["tb_employee_emotion", 7, "사원 컨디션/감정 기록(사내 정서 체크 기능으로 추정)"],
       ["tb_contract", 0, "근로계약 이력(고용구분 · 계약기간 · 급여) — 현재 데이터 없음", true],
       ["tb_certificate", 2, "사원 보유 자격증"],
       ["tb_technology_grade", 2, "사원 기술등급(초급/중급/고급/특급 기술자 등급 파일)"],
@@ -4497,15 +4497,15 @@ const GROUPS = [
       ["tbworkingstatus", 0, "사원별 현재 근무형태 설정값 — 현재 데이터 없음", true],
       ["tbworkshapelog", 0, "근무형태 변경 승인이력 — 현재 데이터 없음", true],
       ["tb_tm_else_wrkst", 1, "시간외근무 실적(분단위 근무시간 · 수당)"],
-      ["tb_wrkst_rcrd_info", 31, "일별 근태기록 — 출퇴근시각 · 근무구분 · 근무지"],
+      ["tb_wrkst_rcrd_info", 32, "일별 근태기록 — 출퇴근시각 · 근무구분 · 근무지"],
       ["tb_wrkst_schdul_info", 0, "근무 예정 스케줄 — 현재 데이터 없음", true],
-      ["tb_wrkst_diary_info", 33, "프로젝트별 업무일지(투입 시간 기록)"],
+      ["tb_wrkst_diary_info", 48, "프로젝트별 업무일지(투입 시간 기록)"],
       ["tb_vctn_info", 7, "연차 발생 · 사용 · 차감 현황(연도별)"],
       ["tb_vctn_day_info", 2, "휴가 사용 일자별 상세 내역"],
       ["tb_holiday", 14, "공휴일 정보(연도별)"],
-      ["tb_extms", 148, "프로젝트 참여인력 등록 마스터 — 투입인력관리 화면의 참여자 목록 기준"],
+      ["tb_extms", 145, "프로젝트 참여인력 등록 마스터 — 투입인력관리 화면의 참여자 목록 기준"],
       ["tb_extms_empl", 24, "사원별 외부/SW 기술등급 구분값"],
-      ["tb_extms_month", 474, "월별 투입률(%) 입력값 — 투입인력관리 화면의 월별 셀 데이터"],
+      ["tb_extms_month", 552, "월별 투입률(%) 입력값 — 투입인력관리 화면의 월별 셀 데이터"],
     ],
   },
   {
@@ -4518,7 +4518,7 @@ const GROUPS = [
       ["tb_company", 1, "회사 기본정보(단일 레코드)"],
       ["tb_hq_intr", 0, "본부 소개 페이지 콘텐츠 — 현재 데이터 없음", true],
       ["tb_auth", 7, "권한(역할) 정의 — 예: 관리자/일반사원 등"],
-      ["tb_doc_access", 70, "권한별 전자결재 문서 접근 설정"],
+      ["tb_doc_access", 67, "권한별 전자결재 문서 접근 설정"],
       ["tb_menu", 37, "좌측 메뉴 트리 구조(대메뉴/중메뉴, 경로, 아이콘)"],
       ["tb_menu_access", 253, "권한별 메뉴 CRUD(생성/조회/수정/삭제) 접근 설정"],
       ["tbauthority", 0, "사원-권한 매핑 — 현재 데이터 없음", true],
@@ -4528,8 +4528,8 @@ const GROUPS = [
     name: "거래처",
     note: "고객사 · 협력사 정보",
     rows: [
-      ["tb_account", 39, "거래처(고객사/협력사) 기본정보 — 사업자번호 · 통장사본 포함"],
-      ["tb_account_manager", 36, "거래처 담당자 연락처"],
+      ["tb_account", 43, "거래처(고객사/협력사) 기본정보 — 사업자번호 · 통장사본 포함"],
+      ["tb_account_manager", 49, "거래처 담당자 연락처"],
     ],
   },
   {
@@ -4546,13 +4546,13 @@ const GROUPS = [
     name: "프로젝트 · 기본정보",
     note: "수주 이후 프로젝트 마스터와 계약 · 투입인력 배정",
     rows: [
-      ["tb_prj_info", 49, "프로젝트 마스터 — 코드(YY-PRJ-0000) · 이름 · 기간 · 수행/영업 조직"],
-      ["tb_prj_stp", 188, "프로젝트 진행단계 변경이력"],
+      ["tb_prj_info", 57, "프로젝트 마스터 — 코드(YY-PRJ-0000) · 이름 · 기간 · 수행/영업 조직"],
+      ["tb_prj_stp", 228, "프로젝트 진행단계 변경이력"],
       ["tb_prj_exc", 2, "착수 · 중간 · 종료보고 일정/장소"],
       ["tb_prj_exc_attch_file", 0, "수행단계 첨부파일 매핑 — 현재 데이터 없음", true],
-      ["tb_prj_inp_mp", 128, "프로젝트 투입인력 배정 — 역할(PM 등) · 투입기간. 프로젝트 원가 화면의 PM 조회에 사용"],
-      ["tb_prj_contrt", 29, "프로젝트 계약 기본정보 — 매출/매입 구분, 계약코드"],
-      ["tb_prj_contrt_rcrd", 39, "계약 상세 — 실행예산 승인요청번호(SND_REQ_NO)와 연결"],
+      ["tb_prj_inp_mp", 146, "프로젝트 투입인력 배정 — 역할(PM 등) · 투입기간. 프로젝트 원가 화면의 PM 조회에 사용"],
+      ["tb_prj_contrt", 39, "프로젝트 계약 기본정보 — 매출/매입 구분, 계약코드"],
+      ["tb_prj_contrt_rcrd", 48, "계약 상세 — 실행예산 승인요청번호(SND_REQ_NO)와 연결"],
     ],
   },
   {
@@ -4560,36 +4560,37 @@ const GROUPS = [
     note: "수주금액 기준으로 원가를 배분하는 승인 프로세스",
     rows: [
       ["tb_prj_exec_bgt", 11, "프로젝트별 승인된 실행예산 버전 이력(EXEC_BGT_CD: -E-1, -E-2 …). 재승인은 증액이 아니라 전체 재작성 방식이라 최신 건만 유효값 — 이번 세션에서 이중집계 버그를 발견해 최신 건만 쓰도록 수정함", true],
-      ["tb_request_exec_bgt", 17, "실행예산 승인요청 총액(BSNDVL_PRC = 수주금액 기준가)"],
-      ["tb_request_exec_bgt_expens", 59, "실행예산 경비 세부내역 — 제안비용/재료비 등 소분류 코드로 구분"],
-      ["tb_request_exec_bgt_lbcst", 35, "실행예산 노무비 세부내역 — 투입인원 × 단가(TOTAL_MM × UNTPC)"],
+      ["tb_request_exec_bgt", 18, "실행예산 승인요청 총액(BSNDVL_PRC = 수주금액 기준가)"],
+      ["tb_request_exec_bgt_expens", 60, "실행예산 경비 세부내역 — 제안비용/재료비 등 소분류 코드로 구분"],
+      ["tb_request_exec_bgt_lbcst", 38, "실행예산 노무비 세부내역 — 투입인원 × 단가(TOTAL_MM × UNTPC)"],
       ["tb_request_exec_bgt_prchss", 19, "실행예산 외주(매입) 내역"],
       ["tb_exec_bgt_rate", 6, "실행예산 계산용 기준 비율(연도 · 소분류별)"],
+      ["tb_labor_cost", 20, "직급별·연도별 노무비(인월단가) 기준표. 원래 solweb에 없던 테이블로 이 앱이 직접 생성·시딩한다(APPLY_YEAR+SBCTG_CD). SBCTG_CD는 새 코드를 만들지 않고 기존 직급 코드(tb_sub_category, MACTG_CD='A1')를 그대로 참조 — 프로젝트 실행원가 비교 화면의 노무비 실적 계산에 사용", true],
     ],
   },
   {
     name: "매출 · 매입",
     note: "청구 · 세금계산서 발행 현황",
     rows: [
-      ["tb_prj_sales_prchss", 35, "프로젝트 매출/매입 청구 현황 — 세금계산서 발행요청/발행/확정일"],
+      ["tb_prj_sales_prchss", 47, "프로젝트 매출/매입 청구 현황 — 세금계산서 발행요청/발행/확정일"],
       ["tb_prj_sales_prchss_mdfd_rcrd", 0, "매출/매입 상태변경 이력 — 현재 데이터 없음", true],
-      ["tb_request_sales_prchss", 47, "매출/매입 등록요청 — 계약금액 · 계약기간"],
+      ["tb_request_sales_prchss", 60, "매출/매입 등록요청 — 계약금액 · 계약기간"],
     ],
   },
   {
     name: "전자결재 · 요청",
     note: "모든 결재문서가 공통 헤더(tb_request)를 거치고, 문서종류별 상세 테이블로 갈라짐",
     rows: [
-      ["tb_request", 122, "전자결재 요청 공통 헤더 — 모든 결재문서(휴가/경비/기안서 등)가 여기서 시작"],
-      ["tb_request_approved", 435, "결재선별 승인/반려 처리 현황 — 요청 1건당 결재자 수만큼 행 생성"],
-      ["tb_request_drrq", 25, "기안서 본문(제목 · 내용)"],
+      ["tb_request", 138, "전자결재 요청 공통 헤더 — 모든 결재문서(휴가/경비/기안서 등)가 여기서 시작"],
+      ["tb_request_approved", 484, "결재선별 승인/반려 처리 현황 — 요청 1건당 결재자 수만큼 행 생성"],
+      ["tb_request_drrq", 26, "기안서 본문(제목 · 내용)"],
       ["tb_request_drrq_form", 6, "기안서 양식 템플릿"],
       ["tb_mng_approved_process", 3, "문서종류별 결재라인(승인자) 설정"],
       ["tb_mng_document", 14, "전자결재 문서종류 마스터 — 문서ID ↔ 저장 테이블명 매핑"],
       ["tb_mng_document2", 0, "문서종류 마스터 예비/이력 테이블 — 현재 데이터 없음", true],
       ["tb_request_vctn", 4, "휴가 신청"],
-      ["tb_request_expenses", 23, "경비 지출결의 신청 — 카드/지급상태 포함"],
-      ["tb_request_exps_decsn", 22, "경비 정산 확정 처리"],
+      ["tb_request_expenses", 29, "경비 지출결의 신청 — 카드/지급상태 포함"],
+      ["tb_request_exps_decsn", 28, "경비 정산 확정 처리"],
       ["tb_request_businesstrip_order", 0, "출장명령 신청 — 현재 데이터 없음", true],
       ["tb_request_flextime", 0, "시차출퇴근 신청 — 현재 데이터 없음", true],
       ["tb_request_work_home", 1, "재택근무 신청"],
@@ -4597,7 +4598,7 @@ const GROUPS = [
       ["tb_request_cowork_project", 6, "타부서 협업 지원요청"],
       ["tb_request_cwk_inp_mp_info", 9, "협업요청 투입인력 배정"],
       ["tb_request_cwk_inp_role", 7, "협업요청 역할별 인건비 정보"],
-      ["tb_request_input_project", 0, "프로젝트 투입 신청 — 현재 데이터 없음", true],
+      ["tb_request_input_project", 1, "프로젝트 투입 신청 — 현재 데이터 없음", true],
       ["tb_request_tm_else_wrkst", 1, "시간외근무 신청"],
     ],
   },
@@ -4629,9 +4630,21 @@ const GROUPS = [
     rows: [
       ["tb_main_category", 47, "공통 대분류 코드(예: A, D, P 계열 코드의 상위 분류)"],
       ["tb_sub_category", 336, "공통 소분류 코드 — 근태/경비/프로젝트 등 전 화면의 드롭다운 값 원천"],
-      ["tb_attach_file", 284, "첨부파일 개별 정보 — 실제 파일명/경로/URL"],
+      ["tb_attach_file", 361, "첨부파일 개별 정보 — 실제 파일명/경로/URL"],
       ["tb_attach_file_group", 248, "첨부파일 묶음(그룹) 단위"],
       ["tb_solution", 0, "조직별 보유 솔루션 소개자료 — 현재 데이터 없음", true],
+    ],
+  },
+  {
+    name: "외부 연동 (그룹웨어 무관)",
+    note: "이 경영관리 프로그램이 아니라 다른 사내 시스템이 같은 DB(solweb)를 함께 쓰면서 만든 테이블",
+    rows: [
+      [
+        "tb_api_key_manager",
+        140,
+        "Qdrant MCP 게이트웨이 API 키 관리 — scope(personal/shared/proposal_data)·사용자별 rag_key 발급 및 활성화(active Y/N) 상태 저장. 이 그룹웨어 코드에서는 참조하지 않음. 실제 키 값(rag_key)은 민감정보라 이 문서에 옮기지 않았음",
+        true,
+      ],
     ],
   },
 ];
