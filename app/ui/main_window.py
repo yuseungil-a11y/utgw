@@ -21,7 +21,7 @@ from app.ui.project_headcount_dialog import ProjectHeadcountDialog
 from app.ui.project_input_mm_dialog import ProjectInputMmDialog
 from app.ui.project_manpower_dialog import ProjectManpowerDialog
 from app.ui.sales_purchase_dialog import SalesPurchaseDialog
-from app.ui.theme import build_menu_tree_qss, current_theme
+from app.ui.theme import POPUP_HEIGHT, POPUP_WIDTH, build_menu_tree_qss, current_theme
 from app.ui.update_dialog import UpdateDialog
 from app.updater import ReleaseInfo, get_latest_release, is_newer
 from app.version import APP_VERSION
@@ -58,7 +58,10 @@ class MainWindow(QMainWindow):
         self._user = user
 
         self.setWindowTitle("유티정보 그룹웨어 경영관리 프로그램")
-        self.resize(1200, 800)
+        # 팝업 화면들과 동일한 크기(FullHD 80%, 16:9 와이드)로 맞춰서 처음 뜰 때부터
+        # 가로로 넉넉하게 열리게 한다 — 기존 1200x800은 좁아서 대시보드 차트 x축
+        # 라벨이 "2026..."처럼 잘려 보였다.
+        self.resize(POPUP_WIDTH, POPUP_HEIGHT)
 
         self._dashboard_view = DashboardView(app_config, user)
         self._placeholder = self._build_placeholder()
@@ -84,7 +87,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self._stack)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([260, 940])
+        splitter.setSizes([260, POPUP_WIDTH - 260])
 
         central = QWidget()
         central_layout = QVBoxLayout()

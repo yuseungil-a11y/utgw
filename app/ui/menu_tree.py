@@ -27,18 +27,6 @@ MENU_TREE: list[MenuItem] = [
         ],
     ),
     MenuItem(
-        label="시스템운영",
-        children=[MenuItem(label="정의중")],
-    ),
-    MenuItem(
-        label="통계분석",
-        children=[MenuItem(label="정의중")],
-    ),
-    MenuItem(
-        label="이력조회",
-        children=[MenuItem(label="로그인 이력 (정의중)")],
-    ),
-    MenuItem(
         label="운영관리",
         children=[
             MenuItem(label="정의중"),
