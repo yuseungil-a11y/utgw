@@ -33,17 +33,22 @@ from app.ui.table_utils import NumericTableWidgetItem, enable_header_sorting
 from app.ui.theme import POPUP_GRID_FONT_PX, POPUP_HEIGHT, POPUP_WIDTH, current_theme
 
 _ROW_HEIGHT = 28
+STANDARD_MONTH_HOURS = 160  # 1 M/M(맨먼스) = 160시간
 
-PROJECT_FIXED_COLUMNS = ["순번", "프로젝트", "투입인원", "합계(H)"]
-PERSON_FIXED_COLUMNS = ["순번", "소속", "이름", "프로젝트", "합계(H)"]
+PROJECT_FIXED_COLUMNS = ["순번", "프로젝트", "투입인원", "합계(M/M)"]
+PERSON_FIXED_COLUMNS = ["순번", "소속", "이름", "프로젝트", "합계(M/M)"]
 
 
-def _fmt_hours(value: float) -> str:
-    if not value:
+def _to_mm(hours: float) -> float:
+    """업무일지 투입시간을 M/M(맨먼스)으로 환산한다. 소수점 둘째 자리에서
+    반올림해 첫째 자리까지만 남긴다(1 M/M = 160시간)."""
+    return round(hours / STANDARD_MONTH_HOURS, 1)
+
+
+def _fmt_mm(hours: float) -> str:
+    if not hours:
         return ""
-    if abs(value - round(value)) < 0.05:
-        return f"{int(round(value)):,}"
-    return f"{value:,.1f}"
+    return f"{_to_mm(hours):.1f}"
 
 
 class ProjectHeadcountDialog(QDialog):
@@ -213,7 +218,7 @@ class ProjectHeadcountDialog(QDialog):
         self._status_label.setText(
             f"프로젝트 {len(self._project_rows)}건 · (직원×프로젝트) {len(self._person_rows)}행 · "
             f"{self._start_year}.{self._start_month:02d} ~ {self._end_year}.{self._end_month:02d} 기준 "
-            f"(단위: 시간, 업무일지 tb_wrkst_diary_info)"
+            f"(단위: M/M, 1M/M={STANDARD_MONTH_HOURS}시간, 업무일지 tb_wrkst_diary_info 기준)"
         )
 
     # ------------------------------------------------------------------
@@ -225,8 +230,8 @@ class ProjectHeadcountDialog(QDialog):
         widest = max((metrics.horizontalAdvance(h) for h in self._month_headers()), default=0)
         return max(58, min(widest + 22, 110))
 
-    def _set_hours_cell(self, table: QTableWidget, row: int, col: int, value: float, bold: bool = False) -> None:
-        item = NumericTableWidgetItem(_fmt_hours(value))
+    def _set_mm_cell(self, table: QTableWidget, row: int, col: int, value: float, bold: bool = False) -> None:
+        item = NumericTableWidgetItem(_fmt_mm(value))
         item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         theme = current_theme()
         if not value:
@@ -287,9 +292,9 @@ class ProjectHeadcountDialog(QDialog):
                 self._set_text_cell(table, row_idx, 0, str(seq), center=True, numeric=True)
                 self._set_text_cell(table, row_idx, 1, item.prj_name)
                 self._set_text_cell(table, row_idx, 2, str(item.headcount), center=True, numeric=True)
-                self._set_hours_cell(table, row_idx, 3, item.total_hours, bold=True)
+                self._set_mm_cell(table, row_idx, 3, item.total_hours, bold=True)
                 for offset, (y, m) in enumerate(months):
-                    self._set_hours_cell(
+                    self._set_mm_cell(
                         table, row_idx, 4 + offset, item.monthly.get(f"{y:04d}{m:02d}", 0.0)
                     )
                 continue
@@ -301,13 +306,13 @@ class ProjectHeadcountDialog(QDialog):
             name_item.setForeground(QColor(theme.text_secondary))
             table.setItem(row_idx, 1, name_item)
             self._set_text_cell(table, row_idx, 2, "")
-            hours_item = NumericTableWidgetItem(_fmt_hours(item.total_hours))
+            hours_item = NumericTableWidgetItem(_fmt_mm(item.total_hours))
             hours_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             hours_item.setForeground(QColor(theme.text_secondary))
             table.setItem(row_idx, 3, hours_item)
             for offset, (y, m) in enumerate(months):
                 value = item.monthly.get(f"{y:04d}{m:02d}", 0.0)
-                cell_item = NumericTableWidgetItem(_fmt_hours(value))
+                cell_item = NumericTableWidgetItem(_fmt_mm(value))
                 cell_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 if not value:
                     cell_item.setForeground(QColor(theme.text_secondary))
@@ -341,9 +346,9 @@ class ProjectHeadcountDialog(QDialog):
             self._set_text_cell(table, row_idx, 1, prow.dept)
             self._set_text_cell(table, row_idx, 2, prow.empl_name)
             self._set_text_cell(table, row_idx, 3, prow.prj_name)
-            self._set_hours_cell(table, row_idx, 4, prow.total_hours, bold=True)
+            self._set_mm_cell(table, row_idx, 4, prow.total_hours, bold=True)
             for offset, (y, m) in enumerate(months):
-                self._set_hours_cell(
+                self._set_mm_cell(
                     table, row_idx, 5 + offset, prow.monthly.get(f"{y:04d}{m:02d}", 0.0)
                 )
         table.setSortingEnabled(True)
@@ -383,8 +388,8 @@ class ProjectHeadcountDialog(QDialog):
             seq = 0
             for prow in self._project_rows:
                 seq += 1
-                values = [seq, prow.prj_name, prow.headcount, prow.total_hours] + [
-                    prow.monthly.get(f"{y:04d}{m:02d}", 0.0) for y, m in months
+                values = [seq, prow.prj_name, prow.headcount, _to_mm(prow.total_hours)] + [
+                    _to_mm(prow.monthly.get(f"{y:04d}{m:02d}", 0.0)) for y, m in months
                 ]
                 for col_idx, value in enumerate(values, start=1):
                     cell = sheet.cell(row=excel_row, column=col_idx, value=value)
@@ -395,9 +400,12 @@ class ProjectHeadcountDialog(QDialog):
                 if prow.headcount <= 1:
                     continue
                 for person in persons_by_prj.get(prow.prj_id, []):
-                    person_values = [None, f"　└ {person.empl_name} ({person.dept})", None, person.total_hours] + [
-                        person.monthly.get(f"{y:04d}{m:02d}", 0.0) for y, m in months
-                    ]
+                    person_values = [
+                        None,
+                        f"　└ {person.empl_name} ({person.dept})",
+                        None,
+                        _to_mm(person.total_hours),
+                    ] + [_to_mm(person.monthly.get(f"{y:04d}{m:02d}", 0.0)) for y, m in months]
                     for col_idx, value in enumerate(person_values, start=1):
                         cell = sheet.cell(row=excel_row, column=col_idx, value=value)
                         cell.font = person_font
@@ -413,8 +421,8 @@ class ProjectHeadcountDialog(QDialog):
                     prow.dept,
                     prow.empl_name,
                     prow.prj_name,
-                    prow.total_hours,
-                ] + [prow.monthly.get(f"{y:04d}{m:02d}", 0.0) for y, m in months]
+                    _to_mm(prow.total_hours),
+                ] + [_to_mm(prow.monthly.get(f"{y:04d}{m:02d}", 0.0)) for y, m in months]
                 for col_idx, value in enumerate(values, start=1):
                     cell = sheet.cell(row=row_idx, column=col_idx, value=value)
                     if col_idx >= 5 and not value:
