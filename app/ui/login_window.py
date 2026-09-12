@@ -18,6 +18,17 @@ from app.config import AppConfig
 SETTINGS_ORG = "UTGW"
 SETTINGS_APP = "경영관리프로그램"
 
+# 로그인 화면은 앱 공통 폰트(theme.py)보다 한 단계씩 작게 — 420x460의 좁은 카드에
+# 기본 폰트를 그대로 쓰면 글자가 커서 투박해 보였다. 다른 화면에는 영향 없도록
+# 이 창에만 로컬 스타일시트로 오버라이드한다.
+_LOGIN_QSS = """
+QLabel[role="title"] { font-size: 16pt; font-weight: 700; }
+QLabel[role="secondary"] { font-size: 10pt; }
+QLineEdit { font-size: 12pt; }
+QPushButton { font-size: 12pt; }
+QCheckBox { font-size: 10pt; }
+"""
+
 
 class LoginWindow(QWidget):
     def __init__(self, app_config: AppConfig, on_success: Callable[[AuthenticatedUser], None]):
@@ -97,6 +108,7 @@ class LoginWindow(QWidget):
         outer.addWidget(notice)
         outer.addStretch()
         self.setLayout(outer)
+        self.setStyleSheet(_LOGIN_QSS)
 
         self._load_saved_email()
 
