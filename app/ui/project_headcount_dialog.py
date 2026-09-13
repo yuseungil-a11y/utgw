@@ -3,10 +3,10 @@ from datetime import date
 from PySide6.QtCharts import (
     QAbstractBarSeries,
     QBarCategoryAxis,
+    QBarSeries,
     QBarSet,
     QChart,
     QChartView,
-    QHorizontalBarSeries,
     QValueAxis,
 )
 from PySide6.QtCore import Qt
@@ -43,7 +43,6 @@ from app.ui.theme import POPUP_GRID_FONT_PX, POPUP_HEIGHT, POPUP_WIDTH, current_
 
 _ROW_HEIGHT = 28
 STANDARD_MONTH_HOURS = 160  # 1 M/M(맨먼스) = 160시간
-_CHART_TOP_N = 15  # 차트에 표시할 최대 항목 수(전체를 다 그리면 막대가 너무 빽빽해짐)
 
 PROJECT_FIXED_COLUMNS = ["순번", "프로젝트", "투입인원", "합계(M/M)"]
 PERSON_FIXED_COLUMNS = ["순번", "소속", "이름", "프로젝트", "합계(M/M)"]
@@ -68,6 +67,7 @@ class ProjectHeadcountDialog(QDialog):
         self._period_months_list: list[tuple[int, int]] = []
         self._project_rows = []
         self._person_rows = []
+        self._project_display_rows: list[tuple[str, object]] = []
 
         self.setWindowTitle("프로젝트 인력 투입")
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMaximizeButtonHint)
@@ -158,10 +158,12 @@ class ProjectHeadcountDialog(QDialog):
         self._status_label.setProperty("role", "secondary")
 
         self._project_table = self._make_grid()
+        self._project_table.itemSelectionChanged.connect(self._on_project_selection_changed)
         # 투입인원이 2명 이상인 프로젝트는 그 밑에 참여자별 세부 행을 붙이는 구조라
         # (아래 _build_project_table 참고), 헤더 클릭 정렬을 켜면 그 묶음이 깨진다.
         self._person_table = self._make_grid()
         enable_header_sorting(self._person_table)
+        self._person_table.itemSelectionChanged.connect(self._on_person_selection_changed)
 
         self._view_stack = QStackedWidget()
         self._view_stack.addWidget(self._project_table)
@@ -189,7 +191,11 @@ class ProjectHeadcountDialog(QDialog):
     def _make_grid() -> QTableWidget:
         table = QTableWidget()
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        # 행을 클릭하면 그 항목의 월별 추이를 하단 차트에 그려주므로(아래
+        # _on_project_selection_changed / _on_person_selection_changed 참고),
+        # 예전의 선택 불가 상태 대신 한 행씩 선택 가능하게 한다.
+        table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.verticalHeader().setVisible(False)
         table.setAlternatingRowColors(True)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
@@ -198,7 +204,8 @@ class ProjectHeadcountDialog(QDialog):
 
     def _on_view_changed(self, _checked: bool) -> None:
         self._view_stack.setCurrentIndex(0 if self._project_radio.isChecked() else 1)
-        self._render_chart()
+        self._on_project_selection_changed()
+        self._on_person_selection_changed()
 
     def _on_search_period(self) -> None:
         sy = self._start_year_combo.currentData()
@@ -234,7 +241,18 @@ class ProjectHeadcountDialog(QDialog):
 
         self._build_project_table()
         self._build_person_table()
-        self._render_chart()
+        # 기본으로 첫 행을 선택해서, 화면을 열자마자(또는 새로고침 직후) 차트가
+        # 비어있지 않고 뭔가 보이게 한다.
+        if self._project_table.rowCount():
+            self._project_table.selectRow(0)
+        else:
+            self._project_table.clearSelection()
+        if self._person_table.rowCount():
+            self._person_table.selectRow(0)
+        else:
+            self._person_table.clearSelection()
+        self._on_project_selection_changed()
+        self._on_person_selection_changed()
         self._status_label.setText(
             f"프로젝트 {len(self._project_rows)}건 · (직원×프로젝트) {len(self._person_rows)}행 · "
             f"{self._start_year}.{self._start_month:02d} ~ {self._end_year}.{self._end_month:02d} 기준 "
@@ -277,71 +295,77 @@ class ProjectHeadcountDialog(QDialog):
             grouped.setdefault(prow.prj_id, []).append(prow)
         return grouped
 
-    def _person_totals(self) -> list[tuple[str, float]]:
-        """사람 기준 그리드는 (직원, 프로젝트)별 행이라, 차트는 직원별 합계로 다시
-        묶어서 보여준다 — 프로젝트별로 쪼개진 막대보다 "누가 얼마나 투입됐는지"가
-        한눈에 보이는 편이 유용하다."""
-        totals: dict[str, float] = {}
-        labels: dict[str, str] = {}
-        for prow in self._person_rows:
-            totals[prow.empl_id] = totals.get(prow.empl_id, 0.0) + prow.total_hours
-            labels[prow.empl_id] = f"{prow.empl_name} ({prow.dept})" if prow.dept else prow.empl_name
-        return [(labels[empl_id], hours) for empl_id, hours in totals.items()]
+    def _on_project_selection_changed(self) -> None:
+        if not self._project_radio.isChecked():
+            return
+        row = self._project_table.currentRow()
+        if row < 0 or row >= len(self._project_display_rows):
+            self._clear_chart("표에서 프로젝트(또는 참여자)를 선택하면 월별 투입 M/M을 표시합니다.")
+            return
+        kind, item = self._project_display_rows[row]
+        if kind == "project":
+            self._render_entity_chart(f"[{item.prj_name}] 월별 투입 M/M", item.monthly)
+        else:
+            self._render_entity_chart(f"{item.empl_name} ({item.dept}) 월별 투입 M/M", item.monthly)
 
-    def _render_chart(self) -> None:
+    def _on_person_selection_changed(self) -> None:
+        if self._project_radio.isChecked():
+            return
+        row = self._person_table.currentRow()
+        if row < 0 or row >= len(self._person_rows):
+            self._clear_chart("표에서 인력을 선택하면 월별 투입 M/M을 표시합니다.")
+            return
+        prow = self._person_rows[row]
+        self._render_entity_chart(f"{prow.empl_name} ({prow.dept}) · {prow.prj_name} 월별 투입 M/M", prow.monthly)
+
+    def _clear_chart(self, message: str) -> None:
         self._chart.removeAllSeries()
         for axis in self._chart.axes():
             self._chart.removeAxis(axis)
+        self._chart.setTitle(message)
 
-        is_project = self._project_radio.isChecked()
-        if is_project:
-            entries = [(row.prj_name, row.total_hours) for row in self._project_rows]
-            title = "프로젝트별 투입 M/M"
-        else:
-            entries = self._person_totals()
-            title = "인력별 투입 M/M"
-
-        total_count = len(entries)
-        entries = sorted(entries, key=lambda pair: pair[1], reverse=True)[:_CHART_TOP_N]
-        if not entries:
-            self._chart.setTitle(f"{title} (데이터 없음)")
-            return
-        if len(entries) < total_count:
-            title += f" (상위 {len(entries)}건)"
+    def _render_entity_chart(self, title: str, monthly: dict[str, float]) -> None:
+        """선택된 프로젝트(또는 사람)의 월별 투입 M/M 추이를 막대차트로 그린다.
+        예전엔 여러 프로젝트/사람을 한 차트에 나열했는데, 이름이 길어서 축
+        라벨이 다 잘려 알아볼 수 없었다 — 한 항목씩 골라서 보는 방식으로 바꿨다."""
+        self._chart.removeAllSeries()
+        for axis in self._chart.axes():
+            self._chart.removeAxis(axis)
         self._chart.setTitle(title)
 
-        # 가장 큰 값이 위로 오도록(막대그래프 관례) 표시 순서를 뒤집는다.
-        entries = list(reversed(entries))
-        categories = [name for name, _hours in entries]
-        values = [_to_mm(hours) for _name, hours in entries]
+        months = self._period_months_list
+        if not months:
+            return
+        categories = self._month_headers()
+        values = [_to_mm(monthly.get(f"{y:04d}{m:02d}", 0.0)) for y, m in months]
 
         bar_set = QBarSet("M/M")
         bar_set.append(values)
-        series = QHorizontalBarSeries()
+        series = QBarSeries()
         series.append(bar_set)
         series.setLabelsVisible(True)
         series.setLabelsFormat("@value")
         series.setLabelsPosition(QAbstractBarSeries.LabelsPosition.LabelsOutsideEnd)
         self._chart.addSeries(series)
 
-        axis_y = QBarCategoryAxis()
-        axis_y.append(categories)
-        self._chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
-        series.attachAxis(axis_y)
-
-        axis_x = QValueAxis()
-        axis_x.setLabelFormat("%.1f")
-        axis_x.setRange(0, max(values + [1]) * 1.2)
+        axis_x = QBarCategoryAxis()
+        axis_x.append(categories)
         self._chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
         series.attachAxis(axis_x)
+
+        axis_y = QValueAxis()
+        axis_y.setLabelFormat("%.1f")
+        axis_y.setRange(0, max(values + [0.1]) * 1.25)
+        self._chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
+        series.attachAxis(axis_y)
 
         theme = current_theme()
         self._chart.setBackgroundBrush(QColor(theme.chart_bg))
         self._chart.setBackgroundRoundness(0)
         self._chart.setTitleBrush(QColor(theme.chart_text))
         self._chart.legend().setVisible(False)
-        axis_y.setLabelsColor(QColor(theme.chart_text))
         axis_x.setLabelsColor(QColor(theme.chart_text))
+        axis_y.setLabelsColor(QColor(theme.chart_text))
         bar_set.setLabelColor(QColor(theme.chart_text))
 
     def _build_project_table(self) -> None:
@@ -406,6 +430,7 @@ class ProjectHeadcountDialog(QDialog):
                 table.setItem(row_idx, 4 + offset, cell_item)
         # 세부 행이 있는 프로젝트는 그 묶음이 정렬로 흐트러지면 안 되므로, 이 표는
         # 정렬을 켜지 않는다(person_table에서 개인 기준으로 얼마든지 정렬 가능).
+        self._project_display_rows = display_rows
 
     def _build_person_table(self) -> None:
         months = self._period_months_list
