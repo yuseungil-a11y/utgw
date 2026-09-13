@@ -31,7 +31,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_REPO = "yuseungil-a11y/utgw"
-ZIP_ASSET_NAME = "UTGW경영관리.zip"
+# GitHub는 릴리즈 자산 파일명에서 비-ASCII(한글) 문자를 제거해 저장한다 - 로컬
+# 빌드 산출물은 "UTGW경영관리.zip"이지만, 업로드하면(웹 UI든 gh CLI든 동일)
+# 실제 자산명은 "UTGW.zip"이 된다. 예전엔 이 상수가 로컬 파일명과 같은
+# "UTGW경영관리.zip"으로 돼 있어서 get_latest_release()가 자산을 절대 찾지
+# 못했다 — onedir 전환 이후 자동 업데이트가 조용히 항상 실패하던 원인.
+ZIP_ASSET_NAME = "UTGW.zip"
 API_BASE = "https://api.github.com"
 _MIN_VALID_ZIP_SIZE = 20_000_000  # 이보다 작으면 손상/잘린 다운로드로 간주
 _MIN_VALID_EXE_SIZE = 5_000_000  # 압축 해제한 실행파일 최소 크기(정상은 약 80MB)

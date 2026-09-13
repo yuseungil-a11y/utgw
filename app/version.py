@@ -6,4 +6,4 @@
 - PATCH: 버그 수정, UI 미세 조정 등 사용자 경험에 큰 영향 없는 변경
 """
 
-APP_VERSION = "1.6.0"
+APP_VERSION = "1.6.1"
