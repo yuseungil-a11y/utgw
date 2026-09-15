@@ -10,10 +10,12 @@
 파생시켰다.
 """
 
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QGuiApplication, QPainter, QPen, QPixmap, QPolygonF
 
 # Radius 스케일 (가이드 슬라이드 6)
 RADIUS_XS = 2  # 칩 · 태그
@@ -132,7 +134,39 @@ def current_theme() -> Theme:
     return DARK if scheme == Qt.ColorScheme.Dark else LIGHT
 
 
+def _checkmark_icon_path() -> str:
+    """체크박스·라디오버튼의 체크 표시(흰색 체크마크)를 그려서 임시 파일로
+    캐싱해두고 그 경로를 돌려준다. QSS의 `::indicator:checked { image: url(...) }`는
+    실제 파일 경로만 받고(data URI 불가) .qrc 리소스 컴파일까지는 과해서,
+    최초 1회 그려서 임시 디렉터리에 저장해두고 재사용한다. 체크된 배경은 항상
+    accent(파랑 계열)라 라이트/다크 공통으로 흰색 체크마크 하나면 된다."""
+    path = Path(tempfile.gettempdir()) / "utgw_checkmark_icon.png"
+    if not path.exists():
+        size = 20
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(Qt.GlobalColor.white)
+        pen.setWidthF(2.4)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        checkmark = QPolygonF(
+            [
+                QPointF(size * 0.22, size * 0.52),
+                QPointF(size * 0.42, size * 0.72),
+                QPointF(size * 0.80, size * 0.28),
+            ]
+        )
+        painter.drawPolyline(checkmark)
+        painter.end()
+        pixmap.save(str(path), "PNG")
+    return path.as_posix()
+
+
 def build_app_qss(theme: Theme) -> str:
+    checkmark = _checkmark_icon_path()
     return f"""
 QWidget {{
     background-color: {theme.bg};
@@ -250,36 +284,38 @@ QCheckBox {{
     spacing: 8px;
 }}
 QCheckBox::indicator {{
-    width: 16px;
-    height: 16px;
-    border-radius: {RADIUS_XS}px;
-    border: 1px solid {theme.border};
+    width: 18px;
+    height: 18px;
+    border-radius: {RADIUS_SM}px;
+    border: 1.5px solid {theme.border};
     background-color: {theme.surface};
 }}
 QCheckBox::indicator:hover {{
-    border: 1px solid {theme.accent};
+    border: 1.5px solid {theme.accent};
 }}
 QCheckBox::indicator:checked {{
-    border: 1px solid {theme.accent};
+    border: 1.5px solid {theme.accent};
     background-color: {theme.accent};
+    image: url({checkmark});
 }}
 QRadioButton {{
     color: {theme.text_primary};
     spacing: 8px;
 }}
 QRadioButton::indicator {{
-    width: 16px;
-    height: 16px;
-    border-radius: 8px;
-    border: 1px solid {theme.border};
+    width: 18px;
+    height: 18px;
+    border-radius: {RADIUS_SM}px;
+    border: 1.5px solid {theme.border};
     background-color: {theme.surface};
 }}
 QRadioButton::indicator:hover {{
-    border: 1px solid {theme.accent};
+    border: 1.5px solid {theme.accent};
 }}
 QRadioButton::indicator:checked {{
-    border: 5px solid {theme.accent};
-    background-color: {theme.surface};
+    border: 1.5px solid {theme.accent};
+    background-color: {theme.accent};
+    image: url({checkmark});
 }}
 QDialog {{
     background-color: {theme.bg};
